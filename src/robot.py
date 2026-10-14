@@ -582,3 +582,314 @@ class Sawyer(Robot, object):
         cameras.set_callback(camera, show_image_callback,
             rectify_image=False)
         raw_input('Attach the paint brush now. Press enter to continue:')
+
+
+class SO101(Robot, object):
+    '''
+        Low-level action functionality of the SO-101 robot.
+    '''
+    def __init__(self, debug, node_name="painting"):
+        from lerobot.robots.so_follower import SO101FollowerConfig, SO101Follower
+        from lerobot.model.kinematics import RobotKinematics
+        from lerobot.robots.so_follower.robot_kinematic_processor import (
+            InverseKinematicsEEToJoints,
+            EEBoundsAndSafety
+        )
+        from lerobot.processor import (
+            RobotProcessorPipeline,
+            robot_action_observation_to_transition,
+            transition_to_robot_action,
+        )
+        from lerobot.lerobot_types import RobotAction, RobotObservation
+
+        self.debug_bool = debug
+        
+        # Config for arm
+        config = SO101FollowerConfig(
+            port="/dev/tty.usbmodem5B8E1155331",
+            id="my_arm",
+            use_degrees=True,
+            # cameras={"top": 0, "side": 1},
+            max_relative_target=None, # Limit max motion to 10 degrees
+        )
+        self.arm = SO101Follower(config=config)
+        
+        # Build pipeline to convert EE action to follower joints (with safety bounds).
+        self.motor_names = list(self.arm.bus.motors.keys())
+        self.arm_joint_names = [n for n in self.motor_names if n != "gripper"]
+        self.kinematics = RobotKinematics(
+            urdf_path="./SO101/so101_new_calib.urdf",
+            target_frame_name="gripper_frame_link",
+            joint_names=self.arm_joint_names,
+        )
+        self.ee_to_follower_joints = RobotProcessorPipeline[tuple[RobotAction, RobotObservation], RobotAction](
+            steps=[
+                EEBoundsAndSafety(
+                    end_effector_bounds={"min": [-1.0, -1.0, -1.0], "max": [1.0, 1.0, 1.0]},
+                    max_ee_step_m=0.5,
+                ),
+                InverseKinematicsEEToJoints(
+                    kinematics=self.kinematics,
+                    motor_names=self.arm_joint_names,
+                    initial_guess_current_joints=True,
+                    orientation_weight=0.001
+                ),
+            ],
+            to_transition=robot_action_observation_to_transition,
+            to_output=transition_to_robot_action,
+        )
+        self.brush_quat = [-0.21764841, 0.71576595, 0.2602021, 0.61041227] # Attitude that holds the brush
+
+    def debug(self, msg):
+        if self.debug_bool:
+            print(msg)
+
+    def good_morning_robot(self):
+        self.arm.connect()
+        
+        with self.arm.bus.torque_disabled():
+            self.arm.bus.write("P_Coefficient", "shoulder_lift", 40)
+            self.arm.bus.write("P_Coefficient", "elbow_flex", 24)
+            
+    def good_night_robot(self):
+        self.arm.disconnect()
+        
+    @staticmethod
+    def position_equal(target, actual, tolerance=1.0) -> bool:
+        return all(
+            abs(float(actual[k]) - float(v)) <= tolerance
+            for k, v in target.items()
+            if k.endswith(".pos")
+        )
+     
+    def go_to_cartesian_pose(self, positions, orientations):
+        """ 
+        Receives positions in FRIDA's coordinate frame
+        """
+        from scipy.spatial.transform import Rotation as R
+        
+        # positions in meters
+        positions, orientations = np.array(positions), np.array(orientations)
+        
+        if len(positions.shape) == 1:
+            positions = positions[None,:]
+            orientations = orientations[None,:]
+        
+        for i in range(len(positions)):
+            x,y,z = positions[i][1], -positions[i][0], positions[i][2] # x = -y
+            print(f"Going to position ({x}, {y}, {z})")
+            q = self.brush_quat # orientations[i]
+            
+            # self.verify_ik((x,y,z), q)
+        
+            r = R.from_quat(q, scalar_first=False)
+            rot_vector = r.as_rotvec()
+            
+            # self.go_to_cartesian_smooth([x,y,z])
+            
+            # Convert from end effector (input) to joint angles (output) that LeRobot expects.
+            observation = self.arm.get_observation()
+            ee_action = {
+                "ee.x": x, # Target position in meters
+                "ee.y": y,
+                "ee.z": z,
+                "ee.wx": rot_vector[0], # Target orientation as a rotation vector
+                "ee.wy": rot_vector[1], # (radians, NOT roll/pitch/yaw)
+                "ee.wz": rot_vector[2],
+                "ee.gripper_pos": observation["gripper.pos"], # Keep gripper unchanged
+            }
+            
+            joint_action = self.ee_to_follower_joints((ee_action, observation))
+
+            if not self.check_cartesian_command(joint_action, [x, y, z]):
+                raise ValueError("Cartesian waypoint failed IK validation")
+            # # Wait until robot at target position
+            # deadline = time.monotonic() + 15.0
+
+            # while True:
+            #     self.arm.send_action(joint_action) 
+                
+            #     current_position = self.arm.get_observation()
+
+            #     if self.position_equal(joint_action, current_position):
+            #         break
+
+            #     if time.monotonic() > deadline:
+            #         raise TimeoutError("Robot failed to reach target joint positions")
+                
+            #     time.sleep(0.05)
+            
+            deadline = time.monotonic() + 15.0
+            next_log = time.monotonic() # Delete
+            while True:
+                sent_action = self.arm.send_action(joint_action)
+                actual = self.arm.get_observation()
+                
+                if time.monotonic() >= next_log: # Delete
+                    print(
+                        f"shoulder: target={joint_action['shoulder_lift.pos']:.2f}, "
+                        f"actual={actual['shoulder_lift.pos']:.2f}"
+                    )
+                    next_log = time.monotonic() + 1.0
+
+                if self.position_equal(joint_action, actual):
+                    break
+
+                if time.monotonic() > deadline:
+                    details = "\n".join(
+                        f"{k}: target={float(target):.2f}, "
+                        f"sent={float(sent_action[k]):.2f}, "
+                        f"actual={float(actual[k]):.2f}, "
+                        f"error={float(target) - float(actual[k]):+.2f}"
+                        for k, target in joint_action.items()
+                        if k.endswith(".pos")
+                    )
+                    print("\nShoulder servo diagnostics (raw register values):")
+                    # Delete before Timeout
+                    for register in [
+                        "P_Coefficient", "I_Coefficient", "D_Coefficient",
+                        "Torque_Enable", "Max_Torque_Limit", "Torque_Limit",
+                        "Goal_Position", "Present_Position",
+                        "Min_Position_Limit", "Max_Position_Limit",
+                        "Present_Load", "Present_Current",
+                        "Present_Voltage", "Present_Temperature", "Status",
+                    ]:
+                        try:
+                            value = self.arm.bus.read(
+                                register, "shoulder_lift", normalize=False
+                            )
+                            print(f"{register}: {value}")
+                        except Exception as exc:
+                            print(f"{register}: {exc}")
+                    raise TimeoutError(
+                        f"Robot failed to reach target joint positions:\n{details}"
+                    )
+
+                time.sleep(0.05)
+    
+    def go_to_cartesian_smooth(
+        self,
+        target_pos,
+        step_size=0.015,
+        pos_tol=0.008,
+        max_steps=100,
+    ):
+        from scipy.spatial.transform import Rotation as R
+
+        target_pos = np.asarray(target_pos, dtype=float)
+        obs = self.arm.get_observation()
+
+        q = np.array([float(obs[f"{n}.pos"]) for n in self.arm_joint_names])
+        T = self.kinematics.forward_kinematics(q)
+        current_pos = T[:3, 3].copy()
+
+        # Use the quaternion that was working better
+        rotvec = R.from_quat(self.brush_quat, scalar_first=False).as_rotvec()
+
+        for i in range(max_steps):
+            delta = target_pos - current_pos
+            dist = np.linalg.norm(delta)
+            if dist < pos_tol:
+                break
+
+            step = delta * min(step_size / dist, 1.0)
+            next_pos = current_pos + step
+
+            ee_action = {
+                "ee.x": float(next_pos[0]),
+                "ee.y": float(next_pos[1]),
+                "ee.z": float(next_pos[2]),
+                "ee.wx": float(rotvec[0]),
+                "ee.wy": float(rotvec[1]),
+                "ee.wz": float(rotvec[2]),
+                "ee.gripper_pos": float(obs["gripper.pos"]),
+            }
+
+            joint_action = self.ee_to_follower_joints((ee_action, obs))
+            self.arm.send_action(joint_action)
+
+            time.sleep(0.03)
+            obs = self.arm.get_observation()
+
+            q = np.array([float(obs[f"{n}.pos"]) for n in self.arm_joint_names])
+            T = self.kinematics.forward_kinematics(q)
+            current_pos = T[:3, 3].copy()
+        else:
+            final_err = np.linalg.norm(target_pos - current_pos) * 1000
+            print(f"Warning: did not converge, final error = {final_err:.1f} mm")
+    
+    def get_cartesian_pose(self):
+        """
+        Returns current (x, y, z) position in FRIDA's coordinate frame
+        """
+        from lerobot.robots.so_follower.robot_kinematic_processor import (
+            ForwardKinematicsJointsToEEObservation
+        )
+        from lerobot.processor import (
+            RobotProcessorPipeline,
+            transition_to_observation,
+            observation_to_transition,
+            
+        )
+        from lerobot.lerobot_types import RobotObservation
+        from scipy.spatial.transform import Rotation as R
+        joints_to_follower_ee = RobotProcessorPipeline[RobotObservation, RobotObservation](
+                steps=[ForwardKinematicsJointsToEEObservation(
+                    kinematics=self.kinematics,
+                    motor_names=self.arm_joint_names,
+                    )
+                ],
+                to_transition=observation_to_transition,
+                to_output=transition_to_observation
+            )
+        observation = self.arm.get_observation()
+        ee = joints_to_follower_ee(observation)
+        # position = float(ee["ee.x"]), float(ee["ee.y"]), float(ee["ee.z"])
+        # rotvec = [float(ee[k]) for k in ("ee.wx", "ee.wy", "ee.wz")]
+        
+        position = [-float(ee["ee.y"]), float(ee["ee.x"]), float(ee["ee.z"])] #  x = -y, y = x
+        return position
+    
+    def check_cartesian_command(self, joint_action, target_xyz):
+        import warnings
+        from scipy.spatial.transform import Rotation as R
+
+        q = np.array([
+            float(joint_action[f"{name}.pos"])
+            for name in self.arm_joint_names
+        ])
+
+        if not np.all(np.isfinite(q)):
+            raise ValueError("Non-finite IK joint target")
+
+        achieved = self.kinematics.forward_kinematics(q).copy()
+        target_xyz = np.asarray(target_xyz, dtype=float)
+
+        error_mm = 1000 * np.linalg.norm(
+            achieved[:3, 3] - target_xyz
+        )
+
+        target_rotation = R.from_quat(self.brush_quat).as_matrix()
+        orientation_error_deg = np.degrees(
+            R.from_matrix(
+                target_rotation.T @ achieved[:3, :3]
+            ).magnitude()
+        )
+
+        if not np.isfinite(error_mm):
+            raise ValueError("Non-finite FK position error")
+
+        self.debug(
+            f"IK residual: {error_mm:.3f} mm; "
+            f"orientation error: {orientation_error_deg:.2f} deg"
+        )
+
+        if error_mm > 1.0:
+            warnings.warn(
+                f"Rejecting waypoint: IK residual {error_mm:.3f} mm",
+                RuntimeWarning,
+                stacklevel=2,
+            )
+            return False
+
+        return True
