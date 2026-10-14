@@ -618,8 +618,8 @@ class SO101(Robot, object):
         self.motor_names = list(self.arm.bus.motors.keys())
         self.arm_joint_names = [n for n in self.motor_names if n != "gripper"]
         self.kinematics = RobotKinematics(
-            urdf_path="./SO101/so101_new_calib.urdf",
-            target_frame_name="gripper_frame_link",
+            urdf_path="src/SO101/so101_brush_tip_nominal.urdf",
+            target_frame_name="brush_tip",
             joint_names=self.arm_joint_names,
         )
         self.ee_to_follower_joints = RobotProcessorPipeline[tuple[RobotAction, RobotObservation], RobotAction](
