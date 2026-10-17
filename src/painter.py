@@ -21,7 +21,9 @@ from brush_stroke import BrushStroke
 
 from paint_utils3 import canvas_to_global_coordinates
 from robot import *
-from camera.dslr import WebCam, SimulatedWebCam
+# from camera.dslr import WebCam, SimulatedWebCam
+from camera.dslr import SimulatedWebCam
+from camera.innomaker import WebCam
 
 
 PERPENDICULAR_QUATERNION = np.array([1.77622069e-04,   9.23865441e-01,  -3.82717408e-01,  -1.73978366e-05])
@@ -60,6 +62,8 @@ class Painter():
             self.robot = Franka(debug=True)
         elif opt.robot == "xarm":
             self.robot = XArm(opt.xarm_ip, debug=True)
+        elif opt.robot =="so101":
+            self.robot = SO101(debug=True)
         elif opt.robot == None:
             self.robot = SimulatedRobot(debug=True)
         if opt.simulate:
@@ -99,7 +103,9 @@ class Painter():
             print('\nBrush tip calibration\n')
             print('Brush should be at very center of the canvas.')
             print('Use keys "w" and "s" to set the brush to just barely touch the canvas.')
+            print("Canvas dims:" + str(self.opt.CANVAS_WIDTH_M) + " , " + str(self.opt.CANVAS_HEIGHT_M))
             p = canvas_to_global_coordinates(0.5, 0.5, self.opt.INIT_TABLE_Z, self.opt)
+            print("Canvas to global coord:", p)
             self.Z_CANVAS = self.set_height(p[0], p[1], self.opt.INIT_TABLE_Z)[2]
 
             print('Move the brush to the lowest point it should go again with "w" and "s" keys.')
@@ -180,16 +186,19 @@ class Painter():
         #     if not self.opt.dont_retrain_stroke_model:
         if not use_cache or not self.opt.dont_retrain_stroke_model:
             from param2stroke import train_param2stroke
-            train_param2stroke(self.opt)
+            train_param2stroke(self.opt, device='cpu')
 
 
 
     def to_neutral(self, speed=0.4):
         # Initial spot
         if not self.opt.simulate:
-            # self.robot.fa.reset_joints()
             y = 0.4 
-            if self.opt.robot == 'franka':
+            if self.opt.robot == 'so101':
+                x, y, z = -0.19836798817407578, 0.08626855950381895, 0.015
+                self.move_to_trajectories([[x,y,z]], [None])
+                return            
+            elif self.opt.robot == 'franka':
                 y = 0.4
             elif self.opt.robot == 'xarm':
                 y = 0.1
@@ -696,3 +705,21 @@ class Painter():
                     pass
                 # Retake with the new paper
                 canvas_without_stroke = self.camera.get_canvas()
+                
+    def hover_above_positions(self):
+        input("Press enter to move to the first position")
+        self.move_to(self.opt.RAG_POSTITION[0],self.opt.RAG_POSTITION[1],self.opt.RAG_POSTITION[2]+self.opt.HOVER_FACTOR, speed=0.3)
+        input("Above RAG_POSITION. Press enter to move to next position")
+        
+        self.move_to(self.opt.WATER_POSITION[0],self.opt.WATER_POSITION[1],self.opt.WATER_POSITION[2]+self.opt.HOVER_FACTOR)
+        input("Above WATER_POSITION. Press enter to move to next position")
+        
+        x = self.opt.PALLETTE_POSITION[0]
+        y = self.opt.PALLETTE_POSITION[1]
+        z = self.opt.PALLETTE_POSITION[2] 
+                
+        self.move_to(x,y,z+self.opt.HOVER_FACTOR)
+        input("Above PALLETTE_POSITION. Press enter to move to next position")
+        
+        self.to_neutral()
+

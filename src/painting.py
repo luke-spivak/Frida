@@ -28,7 +28,7 @@ class Painting(nn.Module):
         else:
             self.brush_strokes = nn.ModuleList(brush_strokes)
         
-        self.param2img = get_param2img(opt)
+        self.param2img = get_param2img(opt, device=device)
 
     def get_optimizers(self, multiplier=1.0, ink=False):
         xt = []

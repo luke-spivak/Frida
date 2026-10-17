@@ -274,7 +274,7 @@ def random_init_painting(opt, background_img, n_strokes, ink=False, device='cuda
     random.shuffle(xys)
     for x,y in xys:
         # Random brush stroke
-        brush_stroke = BrushStroke(opt, xt=x, yt=y, ink=ink)
+        brush_stroke = BrushStroke(opt, xt=x, yt=y, ink=ink, device=device)
         gridded_brush_strokes.append(brush_stroke)
 
     painting = Painting(opt, 0, background_img=background_img, 

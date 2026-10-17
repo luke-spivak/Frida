@@ -63,7 +63,7 @@ if __name__ == '__main__':
 
     load_objectives_data(opt)
 
-    painting = random_init_painting(opt, current_canvas, opt.num_strokes, ink=opt.ink)
+    painting = random_init_painting(opt, current_canvas, opt.num_strokes, ink=opt.ink, device=device)
     painting.to(device)
 
     # Do the initial optimization
