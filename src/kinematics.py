@@ -192,8 +192,16 @@ class RobotKinematics:
                 return result
 
             if iteration < max_iters:
-                self.solver.solve(True)
-                self.robot.update_kinematics()
+                try:
+                    self.solver.solve(True)
+                    self.robot.update_kinematics()
+                except RuntimeError as exc:
+                    if "Infeasible QP" not in str(exc):
+                        raise  # Don't hide unrelated errors.
+                    
+                    return None
+                
+                
 
         raise ValueError(
             f"IK failed: position error={position_error * 1000:.3f} mm, "

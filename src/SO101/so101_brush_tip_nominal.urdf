@@ -429,4 +429,46 @@
     <child link="brush_exposed_visual" />
     <origin xyz="0.022 0 -0.0385" rpy="0 0 0" />
   </joint>
+
+  <!-- Printed camera-mount base; STL units are millimeters.
+       Transform aligned to the four SO-101 base mounting holes.
+       Original base_link coordinates are preserved. -->
+  <link name="arm_mount">
+    <visual>
+      <geometry><mesh filename="assets/arm_base.stl" scale="0.001 0.001 0.001"/></geometry>
+      <material name="arm_mount_black"><color rgba="0.12 0.12 0.12 1"/></material>
+    </visual>
+    <collision>
+      <geometry><mesh filename="assets/arm_base.stl" scale="0.001 0.001 0.001"/></geometry>
+    </collision>
+  </link>
+  <joint name="base_to_arm_mount" type="fixed">
+    <parent link="base_link"/>
+    <child link="arm_mount"/>
+    <origin xyz="0.072956211 -0.053430466 -0.0024" rpy="1.5707963267948966 0 0"/>
+  </joint>
+
+<link name="table">
+  <visual>
+    <geometry>
+      <box size="1.5 1.5 0.04"/>
+    </geometry>
+    <material name="table_gray">
+      <color rgba="0.65 0.65 0.65 1"/>
+    </material>
+  </visual>
+
+  <collision>
+    <geometry>
+      <box size="1.5 1.5 0.04"/>
+    </geometry>
+  </collision>
+</link>
+
+  <joint name="base_to_table" type="fixed">
+    <parent link="base_link"/>
+    <child link="table"/>
+    <origin xyz="0 0 -0.0274" rpy="0 0 0"/>
+  </joint>
+
 </robot>
