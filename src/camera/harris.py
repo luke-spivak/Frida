@@ -26,14 +26,34 @@ def search_corner(harris_dest, coord, search_size, show_search=False):
 
     return max_orig
 
-def find_corners(img, search_size=10, show_search=False):
+def find_corners(img, search_size=10, show_search=False):    
+    # # show image and take input
+    # plt.imshow(img)
+    # plt.title("Select corners of canvas. First is top-left WITH RESPECT TO ROBOT'S PERSPECTIVE, then clock-wise.")
+    # points = np.array(plt.ginput(n=NUM_CORNERS)).astype(np.int64)
+    # 1. Turn on interactive mode so plt.imshow() doesn't block execution
+    plt.ion() 
     
-    # show image and take input
+    # 2. Create the figure and plot the image
+    fig = plt.figure()
     plt.imshow(img)
-    plt.title("Select corners of canvas. First is top-left WITH RESPECT TO ROBOT'S PERSPECTIVE, then clock-wise.")
-    points = np.array(plt.ginput(n=NUM_CORNERS)).astype(np.int64)
+    plt.title("Select corners of canvas. First is top-left, then clock-wise.")
+    
+    # 3. Explicitly draw the window to make it pop up on your screen
+    plt.draw()
+    plt.pause(0.001) 
+    
+    # 4. Turn off interactive mode right before ginput so ginput takes over the blocking behavior
+    plt.ioff()
+    
+    print(f"Please click {NUM_CORNERS} times on the plot window...")
+    # timeout=0 ensures it won't crash if you take your time clicking
+    points = np.array(plt.ginput(n=NUM_CORNERS, timeout=0)).astype(np.int64)
+    
+    # 5. Clean up and close the window
+    plt.close(fig)
 
-    # print(points)
+    print(points)
 
     # convert to grayscale and calculate corner probabilities
     gray = cv.cvtColor(img,cv.COLOR_BGR2GRAY)
