@@ -1,0 +1,22 @@
+{
+  "joint_offsets_deg": {
+    "shoulder_pan": 3.0,
+    "shoulder_lift": -1.5,
+    "elbow_flex": -5.2,
+    "wrist_flex": 0.0,
+    "wrist_roll": 0.0
+  },
+  "observation": {
+    "shoulder_pan.pos": -10.813186813186814,
+    "shoulder_lift.pos": -104.21978021978022,
+    "elbow_flex.pos": 95.38461538461539,
+    "wrist_flex.pos": 13.626373626373626,
+    "wrist_roll.pos": 90.41758241758242,
+    "gripper.pos": 8.938172043010754
+  },
+  "observation_units": "arm: degrees; gripper: normalized 0-100 opening",
+  "captured_at": "2026-10-19T04:33:42.544712+00:00",
+  "urdf": "/Users/luke/Projects/Frida/src/SO101/so101_brush_tip_nominal.urdf",
+  "calibration": "/Users/luke/.cache/huggingface/lerobot/calibration/robots/so_follower/my_arm.json",
+  "source": "/dev/tty.usbmodem5B8E1155331"
+}

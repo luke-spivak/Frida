@@ -1,5 +1,6 @@
 #! /usr/bin/env python
 import os
+from collections import deque
 import numpy as np
 import time
 
@@ -584,28 +585,14 @@ class Sawyer(Robot, object):
         raw_input('Attach the paint brush now. Press enter to continue:')
         
 """Imports for SO-101"""
-# from scipy.spatial.transform import Rotation as R
 from lerobot.robots.so_follower import SO101FollowerConfig, SO101Follower
-# from lerobot.robots.so_follower.robot_kinematic_processor import InverseKinematicsEEToJoints, EEBoundsAndSafety, ForwardKinematicsJointsToEEObservation
-# from lerobot.processor import (
-#     RobotProcessorPipeline,
-#     robot_action_observation_to_transition,
-#     transition_to_robot_action,
-#     transition_to_observation,
-#     observation_to_transition,
-# )
-# from lerobot.lerobot_types import RobotAction, RobotObservation
-# from kinematics import RobotKinematics
 from motion_planner import SO101MotionPlanner
-
-
-# TODO: Delete self.kinematics (using other kinematics instead)
 
 class SO101(Robot, object):
     '''
         Low-level action functionality of the SO-101 robot.
     '''
-    def __init__(self, debug, node_name="painting"):
+    def __init__(self, debug, node_name="painting", show_viewer=False):
         self.debug_bool = debug
         
         # Config for arm
@@ -618,48 +605,38 @@ class SO101(Robot, object):
         )
         self.arm = SO101Follower(config=config)
         
-        # Build pipeline to convert EE action to follower joints (with safety bounds).
         self.motor_names = list(self.arm.bus.motors.keys())
         self.arm_joint_names = [n for n in self.motor_names if n != "gripper"]
-        # self.kinematics = RobotKinematics(
-        #     urdf_path="SO101/so101_brush_tip_nominal.urdf",
-        #     target_frame_name="brush_tip",
-        #     joint_names=self.arm_joint_names,
-        #     brush_axis_local=[0.0, 1.0, 0.0],
-        #     brush_direction_world=[0.0, 0.0, -1.0],
-        # )
-        # self.ee_to_follower_joints = RobotProcessorPipeline[tuple[RobotAction, RobotObservation], RobotAction](
-        #     steps=[
-        #         EEBoundsAndSafety(
-        #             end_effector_bounds={"min": [-1.0, -1.0, -1.0], "max": [1.0, 1.0, 1.0]},
-        #             max_ee_step_m=0.5,
-        #         ),
-        #         InverseKinematicsEEToJoints(
-        #             kinematics=self.kinematics,
-        #             motor_names=self.arm_joint_names,
-        #             initial_guess_current_joints=True,
-        #             orientation_weight=1.0 # Weights brush axis alignments using custom RobotKinematics class
-        #         ),
-        #     ],
-        #     to_transition=robot_action_observation_to_transition,
-        #     to_output=transition_to_robot_action,
-        # )
-        # self.brush_rotvec = [-1.2958252302262085, 1.2223351981677575, -1.0658945719158899] # Attitude that holds the brush
-        self.motion_planner = SO101MotionPlanner(show_viewer=True)
+        self._last_arm_command_deg = None
+        self.motion_planner = SO101MotionPlanner(
+            show_viewer=show_viewer, lerobot_calibration_path=self.arm.calibration_fpath,
+        )
 
     def debug(self, msg):
         if self.debug_bool:
             print(msg)
 
     def good_morning_robot(self):
+        self._last_arm_command_deg = None
         self.arm.connect()
         
         with self.arm.bus.torque_disabled():
-            self.arm.bus.write("P_Coefficient", "shoulder_lift", 40)
-            self.arm.bus.write("P_Coefficient", "elbow_flex", 32)
-            self.arm.bus.write("P_Coefficient", "shoulder_pan", 32)
+            self.arm.bus.write("P_Coefficient", "shoulder_lift", 88)
+            self.arm.bus.write("P_Coefficient", "elbow_flex", 56)
+            self.arm.bus.write("P_Coefficient", "shoulder_pan", 48)
+            self.arm.bus.write("P_Coefficient", "wrist_flex", 56)
+            self.arm.bus.write("P_Coefficient", "wrist_roll", 48)
+
+        # Session settings, applied after LeRobot's connection/configuration.
+        # Keep EEPROM locked, matching the successful dead-zone experiments.
+        for name in self.arm_joint_names:
+            for register in ("CW_Dead_Zone", "CCW_Dead_Zone"):
+                self.arm.bus.write(register, name, 0, normalize=False)
+                if self.arm.bus.read(register, name, normalize=False) != 0:
+                    raise RuntimeError(f"Failed to set {name} {register} to zero")
             
     def good_night_robot(self):
+        self._last_arm_command_deg = None
         self.arm.disconnect()
         
     @staticmethod
@@ -682,6 +659,8 @@ class SO101(Robot, object):
     def execute_trajectory(
         self, times, joint_traj, tolerance_deg=2.0, timeout=3.0
     ):
+        # An interrupted/failed move must never leave a reusable stale endpoint.
+        self._last_arm_command_deg = None
         if len(times) != len(joint_traj):
             raise ValueError("Each timestamp must have one joint command")
         if not joint_traj:
@@ -699,121 +678,173 @@ class SO101(Robot, object):
 
         # Wait for the arm to reach the final target.
         final_target = joint_traj[-1]
-        deadline = time.perf_counter() + timeout
+        settle_start = time.perf_counter()
+        deadline = settle_start + timeout
+        next_report = settle_start
+        recent_positions = deque()
 
         while True:
             observation = self.arm.get_observation()
-
-            errors = {
-                name: abs(
-                    float(final_target[f"{name}.pos"])
-                    - float(observation[f"{name}.pos"])
-                )
+            now = time.perf_counter()
+            actual = {
+                name: float(observation[f"{name}.pos"])
                 for name in self.arm_joint_names
             }
+            signed_errors = {
+                name: float(final_target[f"{name}.pos"]) - actual[name]
+                for name in self.arm_joint_names
+            }
+            errors = {name: abs(error) for name, error in signed_errors.items()}
+            # Retain roughly the last half-second, including the sample just
+            # before its boundary. Range captures oscillation as well as drift.
+            recent_positions.append((now, actual))
+            while len(recent_positions) > 2 and recent_positions[1][0] < now - 0.5:
+                recent_positions.popleft()
 
             if max(errors.values()) <= tolerance_deg:
+                self._last_arm_command_deg = {
+                    name: float(final_target[f"{name}.pos"])
+                    for name in self.arm_joint_names
+                }
                 return
 
-            if time.perf_counter() >= deadline:
-                details = ", ".join(
-                    f"{name}: {error:.2f}°"
-                    for name, error in errors.items()
+            failing = [name for name, error in errors.items() if error > tolerance_deg]
+            if now >= next_report:
+                details = "; ".join(
+                    f"{name}: target={float(final_target[f'{name}.pos']):+.2f}°, "
+                    f"actual={actual[name]:+.2f}°, error={signed_errors[name]:+.2f}°"
+                    for name in failing
                 )
-                raise TimeoutError(f"Final target not reached. Errors: {details}")
+                print(f"[SO101 settling {now - settle_start:.2f}/{timeout:.2f}s] {details}")
+                next_report = now + 0.5
+
+            if now >= deadline:
+                window = now - recent_positions[0][0]
+                details = [
+                    f"Final target not reached after {now - settle_start:.2f}s "
+                    f"of settling (tolerance={tolerance_deg:.2f}°).",
+                    "Angles below are LeRobot servo degrees; signed error = target - actual.",
+                ]
+                for name in self.arm_joint_names:
+                    values = [positions[name] for _, positions in recent_positions]
+                    details.append(
+                        f"  {name}: target={float(final_target[f'{name}.pos']):+.3f}°, "
+                        f"actual={actual[name]:+.3f}°, error={signed_errors[name]:+.3f}°, "
+                        f"recent_range={max(values) - min(values):.3f}° "
+                        f"over {window:.2f}s"
+                        + (" -- OUTSIDE tolerance" if name in failing else "")
+                    )
+                # Best-effort reads only, after the timeout. They must neither
+                # alter torque/gains nor hide the original tracking failure.
+                details.extend(self._read_timeout_motor_diagnostics(failing))
+                raise TimeoutError("\n".join(details))
 
             time.sleep(0.02)
 
+    def _read_timeout_motor_diagnostics(self, joint_names):
+        """Read the failed joints' registers without writing or reconfiguring."""
+        registers = [
+            ("Goal_Position_deg", "Goal_Position", True),
+            ("Goal_Position_raw", "Goal_Position", False),
+        ] + [
+            (name, name, False) for name in (
+                "Min_Position_Limit", "Max_Position_Limit", "Operating_Mode",
+                "P_Coefficient", "I_Coefficient", "D_Coefficient",
+                "CW_Dead_Zone", "CCW_Dead_Zone",
+                "Torque_Enable", "Torque_Limit", "Max_Torque_Limit",
+                "Present_Velocity", "Present_Load", "Present_Current",
+                "Present_Voltage", "Present_Temperature", "Status", "Moving",
+            )
+        ]
+        readings = {name: [] for name in joint_names}
+        unavailable = []
+        for label, register, normalize in registers:
+            try:
+                values = self.arm.bus.sync_read(
+                    register, motors=joint_names, normalize=normalize, num_retry=0,
+                )
+                for name in joint_names:
+                    readings[name].append(f"{label}={float(values[name]):.3f}")
+            except Exception as exc:
+                unavailable.append(f"  {label}: unavailable ({type(exc).__name__}: {exc})")
+        return [
+            "Read-only motor snapshot after timeout (Goal_Position_deg in degrees; "
+            "other registers in raw units):",
+            *(f"  {name}: {', '.join(values)}" for name, values in readings.items()),
+            *unavailable,
+        ]
+
     def go_to_cartesian_pose(self, positions, orientations=None):
+        previous_command = getattr(self, "_last_arm_command_deg", None)
+        self._last_arm_command_deg = None
         observation = self.arm.get_observation()
+        # LeRobot reads and commands the gripper in the same 0-100 units.
+        # Capture once for this trajectory and reuse the value unchanged.
+        gripper_position = float(observation["gripper.pos"])
 
         current_joints_deg = {
             name: float(observation[f"{name}.pos"])
             for name in self.arm_joint_names
         }
-        current_joints_deg["gripper"] = observation["gripper.pos"]
-        # # Set this to the calibrated URDF angle of your fixed brush grip.
-        # current_joints_deg["gripper"] = self.gripper_model_angle_deg
+        
+        # Nominal estimate for collision geometry: closed/open map to the
+        # URDF limits. This is not a calibrated servo-to-URDF zero alignment.
+        limits = self.motion_planner.scene.getJointInfo("gripper").limits
+        lower, upper = limits.min_position[0], limits.max_position[0]
+        current_joints_deg["gripper"] = float(np.rad2deg(
+            lower + (gripper_position / 100.0) * (upper - lower)
+        ))
 
         robot_positions = self.frida_to_robot(
             np.atleast_2d(np.asarray(positions, dtype=float))
         )
 
+        # Only continue a successfully completed command while feedback remains
+        # nearby. After manual repositioning or a failure, plan from measurement.
+        planning_options = {}
+        if previous_command is not None and all(
+            np.isfinite(current_joints_deg[name])
+            and abs(current_joints_deg[name] - previous_command[name]) <= 2.0
+            for name in self.arm_joint_names
+        ):
+            planning_options["previous_command_deg"] = previous_command
         trajectory = self.motion_planner.plan_xyz_path(
-            robot_positions, current_joints_deg
+            robot_positions, current_joints_deg, **planning_options
         )
         if trajectory is None:
+            self._last_arm_command_deg = planning_options.get("previous_command_deg")
             return True
 
         commands = []
-        for q in trajectory.positions:
-            command = {
-                f"{name}.pos": float(angle)
-                for name, angle in zip(
-                    trajectory.joint_names, np.rad2deg(q)
+
+        for q_model in trajectory.positions:
+            # Invert the same startup calibration used by plan_xyz_path:
+            # model_deg = observation_deg + offset_deg.
+            action = {
+                f"{name}.pos": (
+                    float(np.rad2deg(angle))
+                    - self.motion_planner.joint_offsets_deg.get(name, 0.0)
                 )
+                for name, angle in zip(trajectory.joint_names, q_model)
             }
-            command["gripper.pos"] = observation["gripper.pos"]
-            commands.append(command)
+            action["gripper.pos"] = gripper_position
+            commands.append(action)
 
         self.execute_trajectory(trajectory.times, commands)
             
-    # def get_cartesian_pose(self):
-    #     """
-    #     Returns current (x, y, z) position in FRIDA's coordinate frame
-    #     """
-    #     joints_to_follower_ee = RobotProcessorPipeline[RobotObservation, RobotObservation](
-    #             steps=[ForwardKinematicsJointsToEEObservation(
-    #                 kinematics=self.kinematics,
-    #                 motor_names=self.arm_joint_names,
-    #                 )
-    #             ],
-    #             to_transition=observation_to_transition,
-    #             to_output=transition_to_observation
-    #         )
-    #     observation = self.arm.get_observation()
-    #     ee = joints_to_follower_ee(observation)
-    #     # position = float(ee["ee.x"]), float(ee["ee.y"]), float(ee["ee.z"])
-    #     rotvec = [float(ee[k]) for k in ("ee.wx", "ee.wy", "ee.wz")]
-    #     # print("Attitude (Rotvec in SO101 frame):", rotvec)
-    #     position = [-float(ee["ee.y"]), float(ee["ee.x"]), float(ee["ee.z"])] #  x = -y, y = x
-    #     return position
-    
-    # def check_cartesian_command(self, joint_action, target_xyz):
-    #     import warnings
-    #     from scipy.spatial.transform import Rotation as R
+    def get_cartesian_pose(self):
+        """Return the measured brush-tip [x, y, z] in FRIDA coordinates, meters."""
+        observation = self.arm.get_observation()
+        planner = self.motion_planner
+        q = planner.scene.getCurrentJointPositions().copy()
+        for name in planner.joint_names:
+            angle = float(observation[f"{name}.pos"])
+            if not np.isfinite(angle):
+                raise ValueError(f"Invalid angle for {name}")
+            index = planner.scene.getJointPositionIndices([name])[0]
+            q[index] = np.deg2rad(angle + planner.joint_offsets_deg[name])
 
-    #     q = np.array([
-    #         float(joint_action[f"{name}.pos"])
-    #         for name in self.arm_joint_names
-    #     ])
-
-    #     if not np.all(np.isfinite(q)):
-    #         raise ValueError("Non-finite IK joint target")
-
-    #     achieved = self.kinematics.forward_kinematics(q).copy()
-    #     target_xyz = np.asarray(target_xyz, dtype=float)
-
-    #     error_mm = 1000 * np.linalg.norm(
-    #         achieved[:3, 3] - target_xyz
-    #     )
-
-    #     orientation_error_deg = self.kinematics.brush_tilt_deg(achieved)
-
-    #     if not np.isfinite(error_mm):
-    #         raise ValueError("Non-finite FK position error")
-
-    #     self.debug(
-    #         f"IK residual: {error_mm:.3f} mm; "
-    #         f"orientation error: {orientation_error_deg:.2f} deg"
-    #     )
-
-    #     if error_mm > 1.0:
-    #         warnings.warn(
-    #             f"Rejecting waypoint: IK residual {error_mm:.3f} mm",
-    #             RuntimeWarning,
-    #             stacklevel=2,
-    #         )
-    #         return False
-
-    #     return True
+        # The brush is fixed to the gripper body; jaw opening does not affect FK.
+        pose = planner.scene.forwardKinematics(q, planner.tip_frame, planner.base_frame)
+        # Inverse of frida_to_robot: robot [x, y, z] -> FRIDA [-y, x, z].
+        return [-float(pose[1, 3]), float(pose[0, 3]), float(pose[2, 3])]

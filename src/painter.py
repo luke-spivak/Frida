@@ -195,7 +195,7 @@ class Painter():
         if not self.opt.simulate:
             y = 0.4 
             if self.opt.robot == 'so101':
-                x, y, z = -0.19836798817407578, 0.08626855950381895, 0.015
+                x, y, z = -0.2601, 0.1122, 0.025
                 self.move_to_trajectories([[x,y,z]], [None])
                 return            
             elif self.opt.robot == 'franka':
@@ -258,14 +258,14 @@ class Painter():
         self.hover_above(p[0], p[1], p[2])
 
     def dip_brush_in_water(self):
-        self.move_to(self.opt.WATER_POSITION[0],self.opt.WATER_POSITION[1],self.opt.WATER_POSITION[2]+self.opt.HOVER_FACTOR)
-        positions = []
-        positions.append([self.opt.WATER_POSITION[0],self.opt.WATER_POSITION[1],self.opt.WATER_POSITION[2]+self.opt.HOVER_FACTOR])
-        positions.append([self.opt.WATER_POSITION[0],self.opt.WATER_POSITION[1],self.opt.WATER_POSITION[2]])
-        for i in range(5):
-            noise = np.clip(np.random.randn(2)*0.01, a_min=-.02, a_max=0.02)
-            positions.append([self.opt.WATER_POSITION[0]+noise[0],self.opt.WATER_POSITION[1]+noise[1],self.opt.WATER_POSITION[2]])
-        positions.append([self.opt.WATER_POSITION[0],self.opt.WATER_POSITION[1],self.opt.WATER_POSITION[2]+self.opt.HOVER_FACTOR])
+        x, y, z = self.opt.WATER_POSITION
+        hover = [x, y, z + self.opt.HOVER_FACTOR]
+        self.move_to(*hover)
+        positions = [hover, [x, y, z]]
+        radius = 0.005  # One 5 mm radius circle, at the existing dip depth.
+        for angle in np.linspace(0.0, 2.0 * np.pi, 13):
+            positions.append([x + radius * np.cos(angle), y + radius * np.sin(angle), z])
+        positions.extend([[x, y, z], hover])
         orientations = [None]*len(positions)
         self.move_to_trajectories(positions, orientations)
 

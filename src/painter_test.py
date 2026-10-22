@@ -34,15 +34,13 @@ if __name__ == '__main__':
 
     try:
         # Test to neutral
-        # painter.to_neutral()
-        
-        # painter.rub_brush_on_rag()
         painter.to_neutral()
-        # painter.dip_brush_in_water()
-        # painter.get_paint(1)
+        # painter.rub_brush_on_rag()
+        
+        painter.dip_brush_in_water()
+        painter.get_paint(1)
         # paint_hello_world(painter, air_test=False)
         # # painter.clean_paint_brush()
-        painter.hover_above_positions()
         # painter.to_neutral()
         # painter.clean_paint_brush()
         painter.to_neutral()
