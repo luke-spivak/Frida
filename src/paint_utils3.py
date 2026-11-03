@@ -27,7 +27,6 @@ import random
 
 from painting import Painting
 from brush_stroke import BrushStroke
-from clip_attn.clip_attn import get_attention
 
 from my_tensorboard import TensorBoard
 from project_paths import OUTPUT_DIR
