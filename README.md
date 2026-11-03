@@ -1,6 +1,52 @@
+# Local SO101 checkout
+
+The current layout keeps FRIDA's flat source files and separates runnable tools,
+automated tests, and generated output. Existing filenames and painting behavior
+are retained.
+
+```text
+src/             Painting, rendering, optimization, and robot code
+  camera/        Camera implementations and calibration
+  losses/        Painting objectives
+  SO101/         Robot models, meshes, and so101_offsets.json
+  caches/        Measured calibration, stroke libraries, and trained models
+  remote/        Runpod client/worker, Dockerfile, requirements, and runpod.json
+scripts/         Calibration, diagnostics, experiments, and runpod_workflow.py
+tests/          Automated regression tests
+targets/        Input images
+outputs/        Captures, painting_log, recordings, and job/experiment results
+docs/           Runpod instructions and validation history
+```
+
+Run from the repository root in the existing robot environment:
+
+```sh
+python src/paint.py --robot so101 --materials_json my_materials.json \
+  --cache_dir src/caches/so101_mvp --use_cache --dont_retrain_stroke_model \
+  --simulate --objective l2 --objective_data targets/black_bear.png --objective_weight 1
+python scripts/paint_repeatability.py                   # preview only
+python scripts/preview_so101_offsets.py --help
+python -m pytest -q
+```
+
+Select the cache that matches the physical brush and calibration. Existing caches
+and model bundles are preserved. Paths supplied on the command line are relative
+to the directory you launch from; built-in resource paths resolve from the source
+files. The upstream `materials.json` and example-cache defaults described below
+are absent in this checkout, so pass the actual materials and cache explicitly.
+
+The separate Runpod environment runs
+`.venv-runpod/bin/python scripts/runpod_workflow.py`. That workflow provisions a
+paid job with its default action; use `--help` for argument help without running a
+job. See [Runpod setup and image rebuild instructions](docs/runpod.md). Calibration
+and robot operating instructions remain in [the SO101 README](src/SO101/README.md).
+
+The upstream project documentation follows; examples for previously removed
+research features and datasets may not apply to this checkout.
+
 # FRIDA <a href="https://twitter.com/FridaRobot" target="_blank"><img src="https://about.x.com/content/dam/about-twitter/x/brand-toolkit/logo-black.png.twimg.1920.png" height=32/></a>   <a href="https://www.tiktok.com/@frida_robot?lang=en" target="_blank"> <img src="https://sf-tb-sg.ibytedtos.com/obj/eden-sg/uhtyvueh7nulogpoguhm/tiktok-icon2.png" height=32/></a>
 
-FRIDA (A Framework and Robotics Initiative for Developing Arts), is a robotic painting project developed at 
+FRIDA (A Framework and Robotics Initiative for Developing Arts), is a robotic painting project developed at
 The Robotics Institute, Carnegie Mellon University.
 This repository contains the code for two ICRA papers described below.
 
@@ -113,7 +159,7 @@ We use tensorboard to monitor the progress of the painting.
 
 ```
 # In another terminal, run this to view progress
-tensorboard --logdir Frida/src/painting_log
+tensorboard --logdir Frida/outputs/painting_log
 
 # Open browser and navigate to http://localhost:6006/
 ```
@@ -121,7 +167,7 @@ tensorboard --logdir Frida/src/painting_log
 # Arguments
 
 ```
-python3 paint.py 
+python3 paint.py
     [--simulate] Run in only simulation
     [--robot] Which robot to use [franka|xarm]
     [--xarm_ip] If using xarm, specify its IP address
@@ -169,7 +215,7 @@ python3 paint.py --simulate --use_cache --cache_dir caches/sharpie_short_strokes
 
 ## Acknowledgements
 
-Thank you to: 
+Thank you to:
 - Sunyu Wang for the brilliant, spring-loaded Sharpie holding end-effector
 - [Jia Chen Xu](https://github.com/jxu12345) for writing FRIDA's perception code
 - Heera Sekhr and Jesse Ding for their help in the early stages of designing FRIDA's planning algorithms
