@@ -212,7 +212,8 @@ def save_colors(allowed_colors):
     n_colors = len(allowed_colors)
     i = 0
     w = 128
-    big_img = np.ones((2*w, 6*w, 3))
+    n_rows = max(2, (n_colors + 5) // 6)
+    big_img = np.ones((n_rows*w, 6*w, 3))
 
     for c in allowed_colors:
         c = allowed_colors[i].cpu().detach().numpy()
@@ -220,7 +221,7 @@ def save_colors(allowed_colors):
         big_img[(i//6)*w:(i//6)*w+w, (i%6)*w:(i%6)*w+w,:] = np.concatenate((np.ones((w,w,1))*c[2], np.ones((w,w,1))*c[1], np.ones((w,w,1))*c[0]), axis=-1)
         
         i += 1
-    while i < 12:
+    while i < n_rows * 6:
         big_img[(i//6)*w:(i//6)*w+w, (i%6)*w:(i%6)*w+w,:] = np.concatenate((np.ones((w,w,1)), np.ones((w,w,1)), np.ones((w,w,1))), axis=-1)
         i += 1
 

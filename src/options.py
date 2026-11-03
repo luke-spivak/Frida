@@ -69,6 +69,12 @@ class Options(object):
         parser.add_argument('--num_strokes', type=int, default=400)
         parser.add_argument('--num_adaptations', type=int, default=1)
         parser.add_argument('--fill_weight', type=float, default=0.0, help="Encourage strokes to fill canvas.")
+        parser.add_argument('--foreground_mode', action='store_true',
+                            help='Plan a black silhouette on white; num_strokes is a maximum budget.')
+        parser.add_argument('--foreground_reconstruction_weight', type=float, default=1.0,
+                            help='Additional full-canvas L2 weight for silhouette CLIP planning.')
+        parser.add_argument('--foreground_background_weight', type=float, default=4.0,
+                            help='Additional white-background pixel penalty in silhouette planning.')
 
         # Optimization Parameters
         parser.add_argument('--objective', nargs='*', type=str, help='text|style|clip_conv_loss|l2|clip_fc_loss')
