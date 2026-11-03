@@ -13,8 +13,7 @@ from tqdm import tqdm
 import os
 
 
-# Load only the selected objective. GPU planning does not need the audio,
-# speech, face, or diffusion environments (or their pretrained models).
+# Load CLIP models only when a selected objective needs them.
 
 from paint_utils3 import discretize_colors, format_img, load_img, randomize_brush_stroke_order, sort_brush_strokes_by_color
 
@@ -49,52 +48,16 @@ def parse_objective(objective_type, objective_data, p, weight=1.0, num_augs=30):
     if objective_type == 'text':
         from losses.clip_loss import clip_text_loss
         return clip_text_loss(p, objective_data, num_augs)[0] * weight
-    elif objective_type == 'style':
-        from losses.style_loss import compute_style_loss
-        return compute_style_loss(p, objective_data) * weight
     elif objective_type == 'clip_conv_loss':
         from losses.clip_loss import clip_conv_loss
         return clip_conv_loss(p, objective_data) * weight
-    elif objective_type == 'dino':
-        from losses.dino_loss import dino_loss
-        return dino_loss(p, objective_data) * weight
     elif objective_type == 'l2':
         return ((p - objective_data)**2).mean() * weight
     elif objective_type == 'clip_fc_loss':
         from losses.clip_loss import clip_fc_loss
         return clip_fc_loss(p, objective_data, num_augs)[0] * weight
-    elif objective_type == 'emotion':
-        from losses.emotion_loss.emotion_loss import emotion_loss
-        return emotion_loss(p, objective_data, num_augs)[0] * weight
-    elif objective_type == 'face':
-        from losses.face.face_loss import face_loss
-        return face_loss(p, objective_data, num_augs) * weight
-    elif objective_type == 'stable_diffusion':
-        from losses.stable_diffusion.stable_diffusion_loss2 import stable_diffusion_loss
-        # return sd_loss.stable_diffusion_loss(p, objective_data) * weight
-        return stable_diffusion_loss(p, objective_data) * weight
-    elif objective_type == 'speech':
-        from losses.emotion_loss.emotion_loss import emotion_loss
-        from losses.clip_loss import clip_text_loss
-        return emotion_loss(p, objective_data[0], num_augs)[0] * weight \
-            + clip_text_loss(p, objective_data[1], num_augs)[0] * weight
-    elif objective_type == 'audio':
-        from losses.audio_loss.audio_loss import compute_audio_loss
-        return compute_audio_loss(objective_data, p)[0] * weight
     else:
-        print('don\'t know what objective')
-        1/0
-
-
-def parse_emotion_data(s):
-    weights_str = s.split(',')
-    if len(weights_str) != 9:
-        print('you must specify weights for the 9 emotions. You did:', len(weights_str))
-        1/0
-
-    weights = [float(i) for i in weights_str]
-    weights = torch.tensor(weights).float().to(device)
-    return weights.unsqueeze(0)
+        raise ValueError(f"Unsupported painting objective: {objective_type!r}")
 
 def load_objectives_data(opt):
     # Load Objective data
@@ -108,36 +71,12 @@ def load_objectives_data(opt):
             with torch.no_grad():
                 text_features = clip_model.encode_text(clip.tokenize(opt.objective_data[i]).to(device))
                 objective_data.append(text_features)
-        elif opt.objective[i] == 'audio':
-            from losses.audio_loss.audio_loss import load_audio_file
-            with torch.no_grad():
-                objective_data.append(load_audio_file(opt.objective_data[i]))
-        elif opt.objective[i] == 'emotion':
-            with torch.no_grad():
-                objective_data.append(parse_emotion_data(opt.objective_data[i]))
-        elif opt.objective[i] == 'face':
-            from losses.face.face_loss import parse_face_data
-            with torch.no_grad():
-                img = load_img(opt.objective_data[i],h=opt.h_render, w=opt.w_render).to(device)/255.
-                objective_data.append(parse_face_data(img))
-        elif opt.objective[i] == 'stable_diffusion':
-            from losses.stable_diffusion.stable_diffusion_loss2 import encode_text_stable_diffusion
-            with torch.no_grad():
-                objective_data.append(encode_text_stable_diffusion(opt.objective_data[i]))
-        elif opt.objective[i] == 'speech':
-            import clip
-            from losses.clip_loss import clip_model
-            from losses.speech2emotion.speech2emotion import speech2emotion, speech2text
-            with torch.no_grad():
-                emotion = torch.tensor(speech2emotion(opt.objective_data[i])).float().to(device)
-                speech_text = speech2text(opt.objective_data[i])
-                text_features = clip_model.encode_text(clip.tokenize(speech_text).to(device))
-                objective_data.append([emotion, text_features])
-        else:
-            # Must be an image
+        elif opt.objective[i] in ('l2', 'clip_conv_loss', 'clip_fc_loss'):
             img = load_img(opt.objective_data[i],h=opt.h_render, w=opt.w_render).to(device)/255.
             objective_data.append(img)
             opt.writer.add_image('target/input{}'.format(i), format_img(img), 0)
+        else:
+            raise ValueError(f"Unsupported painting objective: {opt.objective[i]!r}")
     opt.objective_data_loaded = objective_data
 
 def optimize_painting(opt, painting, optim_iter, color_palette=None,

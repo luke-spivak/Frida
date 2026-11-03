@@ -180,7 +180,7 @@ python3 paint.py
     [--n_colors int] Number of discrete paint colors to use
     [--use_colors_from path] If specified, use K-means to get paint colors from this image. Default None
     [--num_strokes int] The desired number of strokes in the painting
-    [--objective [one or many text|clip_conv_los|l2|sketch|style]]
+    [--objective [one or many text|clip_conv_loss|l2|clip_fc_loss]]
     [--objective_data] See below
     [--objective_weight] See below
     [--num_augs int] Number of augmentations when using CLIP
@@ -192,26 +192,23 @@ python3 paint.py
 
 # Objectives
 
-Frida can paint with a number of different objectives that can be used singularly or in weighted combination. They are used to compare the simulated painting plan and a target datum (image or text):
-- `l2` - Simple Euclidean distance is computed between the painting and target image
-- `clip_conv_loss` - Compare the CLIP Convolutional features extracted from the painting and target image
+FRIDA supports four objectives, used individually or in a weighted combination to compare the rendered painting with a target image or text:
+
+- `l2` - Compare the painting and target image using mean squared pixel error
+- `clip_conv_loss` - Compare the CLIP visual features of the painting and target image
 - `clip_fc_loss` - Compare the CLIP embeddings of the painting and target image
-- `text` - Compare the CLIP embeddings of the paiting and the input text description
-- `style` - Compares style features from the painting and the target image
-- `sketch` - [Use `clip_conv_loss` instead right now] Converts the painting and target sketch into sketches then compares them
-- `emotion` - Guide the painting towards the following emotions: amusement, awe, contentment, excitement, anger, disgust, fear, sadness, something else. Specified in comma-sparated list of weights. e.g., half anger and fear: `--objective_data 0,0,0,0,.5,0,.5,0,0`
+- `text` - Compare the CLIP embeddings of the painting and the input text description
 
-Each objective specified must have a specified data file and weight given to it. Objectives can be specified for the initial optimization pass and for the full, final optimization. Here is an example of how to specify objectives where we have an initial objetive to make the painting look like `style_img.jpg` and then a final objective to have the style of `style_img.jpg` with the text description `"a frog ballerina"`:
-```
+Supply one input and weight for each objective. For example, this combines an image reference with a text description during local planning:
+
+```sh
 cd Frida/src
-python3 paint.py --simulate --use_cache --cache_dir caches/sharpie_short_strokes
-   --objective style text
-   --objective_data path/to/style_img.jpg  "a frog ballerina"
-   --objective_weight 0.2  1.0
+python3 paint.py --robot so101 --simulate --use_cache --dont_retrain_stroke_model \
+   --materials_json ../my_materials.json --cache_dir caches/so101_mvp \
+   --objective clip_conv_loss text \
+   --objective_data ../targets/black_bear.png "a black bear" \
+   --objective_weight 0.2 1.0
 ```
-
-
-
 
 ## Acknowledgements
 

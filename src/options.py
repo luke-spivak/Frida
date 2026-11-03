@@ -77,7 +77,9 @@ class Options(object):
                             help='Additional white-background pixel penalty in silhouette planning.')
 
         # Optimization Parameters
-        parser.add_argument('--objective', nargs='*', type=str, help='text|style|clip_conv_loss|l2|clip_fc_loss')
+        parser.add_argument('--objective', nargs='*', type=str,
+                            choices=('text', 'clip_conv_loss', 'l2', 'clip_fc_loss'),
+                            help='Painting objectives; multiple objectives are combined using their weights.')
         parser.add_argument('--objective_data', nargs='*', type=str)
         parser.add_argument('--objective_weight', nargs='*', type=float, default=1.0)
         parser.add_argument('--init_optim_iter', type=int, default=400)

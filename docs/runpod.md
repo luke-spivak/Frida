@@ -131,8 +131,9 @@ plan = train_and_plan_remotely(
 
 Planning defaults match FRIDA's 400 strokes, 400 optimization iterations, render
 height 256, and 12 palette colors. Supported remote objectives are `clip_conv_loss`,
-`clip_fc_loss`, `l2`, and `text` (use the prompt as `target` for text). Other FRIDA
-objectives still work locally but are not included in this worker image.
+`clip_fc_loss`, `l2`, and `text` (use the prompt as `target` for text). Local planning
+supports the same objectives and can combine them; remote planning selects one
+objective per job.
 `num_strokes` must be a perfect square because the existing initializer uses a
 square grid. `num_augs` affects the text/CLIP-FC objectives; CLIP-convolution keeps
 its existing fixed 10 augmentations. Lower iteration/stroke counts trade quality

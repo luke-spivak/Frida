@@ -130,8 +130,7 @@ sys.path[:0] = sys.argv[1:]
 import painting_optimization
 assert "painter" not in sys.modules
 assert "robot" not in sys.modules
-assert "losses.audio_loss.audio_loss" not in sys.modules
-assert "losses.stable_diffusion.stable_diffusion_loss2" not in sys.modules
+assert "losses.clip_loss" not in sys.modules
 """, *sys.path], check=True)
 
 
