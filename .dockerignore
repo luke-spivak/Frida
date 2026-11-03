@@ -1,0 +1,25 @@
+# Only the GPU worker sources belong in a build context.
+**
+!LICENSE
+!src
+src/**
+!src/remote
+src/remote/**
+!src/remote/*.py
+!src/remote/Dockerfile
+!src/remote/requirements-client.txt
+!src/remote/requirements-worker.txt
+!src/options.py
+!src/stroke_plan.py
+!src/painting.py
+!src/painting_optimization.py
+!src/paint_utils3.py
+!src/brush_stroke.py
+!src/param2stroke.py
+!src/my_tensorboard.py
+!src/stroke_renderer.py
+!src/foreground_planning.py
+!src/project_paths.py
+!src/losses
+src/losses/**
+!src/losses/clip_loss.py

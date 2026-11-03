@@ -1,0 +1,14 @@
+{
+  "image": "YOUR_REGISTRY/frida-worker:YOUR_BUILD_TAG",
+  "volume_id": "YOUR_VOLUME_ID",
+  "datacenter": "YOUR_DATACENTER",
+  "gpu": "auto",
+  "compute_datacenter": null,
+  "max_gpu_price_per_hour": 2.0,
+  "max_placement_attempts": 12,
+  "registry_auth": null,
+  "prefix": "frida",
+  "startup_timeout": 900,
+  "job_timeout": 1800,
+  "container_disk_gb": 30
+}

@@ -132,3 +132,9 @@ def test_cache_is_constant_and_respects_size_device_dtype(device):
     assert _warp_constants.cache_info().misses == 3
 
 
+@pytest.mark.parametrize('settings', [{'render_batch_size': -1}, {'render_batch_size': True},
+                                     {'cpu_threads': 0}, {'cpu_threads': True}, {'cpu_threads': 1.5}])
+def test_remote_rejects_invalid_render_controls(settings):
+    from remote.settings import plan_settings
+    with pytest.raises(ValueError):
+        plan_settings(settings)

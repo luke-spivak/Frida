@@ -1,0 +1,15 @@
+-r requirements-client.txt
+# Runtime is not yet on PyPI; pin the official source rather than installing main.
+runpod-sdk-runtime @ git+https://github.com/runpod-workers/sdk-runtime.git@0cbb5bf3a5ca029969ec00c186e6108c1e643c0e
+numpy==2.2.6
+scipy==1.18.1
+Pillow==12.3.0
+opencv-python-headless==4.14.0.94
+colour-science==0.4.7
+scikit-learn==1.9.1
+matplotlib==3.11.2
+torchgeometry==0.1.2
+tensorboardX==2.6.5
+ftfy==6.3.1
+regex==2026.9.29
+clip @ git+https://github.com/openai/CLIP.git@d05afc436d78f1c48dc0dbf8e5980a9d471f35f6

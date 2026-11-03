@@ -9,6 +9,7 @@ import painting as painting_module
 from brush_stroke import BrushStroke
 from foreground_planning import ForegroundPlanner
 from painting import Painting
+from remote.settings import plan_settings
 
 
 @pytest.fixture
@@ -108,3 +109,9 @@ def test_invalid_target_palette_and_background_rejected(scene):
         ForegroundPlanner(opt, painting, torch.zeros(1, 3))
 
 
+@pytest.mark.parametrize('settings', [dict(foreground_mode='yes'),
+    dict(foreground_background_weight=-1), dict(foreground_reconstruction_weight=float('nan')),
+    dict(foreground_mode=True, objective='text')])
+def test_remote_rejects_invalid_foreground_settings(settings):
+    with pytest.raises(ValueError):
+        plan_settings(settings)

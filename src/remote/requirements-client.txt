@@ -1,0 +1,3 @@
+# Python 3.12, same minor version as the worker. SDK v2 is currently prerelease.
+runpod==2.0.0rc1
+boto3==1.43.118
