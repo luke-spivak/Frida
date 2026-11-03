@@ -17,6 +17,26 @@ import torch.nn as nn
 from torchvision import models, transforms
 import clip
 import warnings
+import os
+from functools import lru_cache
+
+
+@lru_cache(maxsize=2)
+def get_clip_model(name='ViT-B/32'):
+    model, preprocess = clip.load(name, device, jit=False,
+                                  download_root=os.environ.get('FRIDA_CLIP_CACHE'))
+    model.eval().requires_grad_(False)
+    return model, preprocess
+
+
+def __getattr__(name):
+    # Preserve imports used by the existing text objectives without loading
+    # two extra models whenever only the convolutional objective is selected.
+    if name in ('clip_model', 'preprocess'):
+        return get_clip_model()[name == 'preprocess']
+    if name in ('clip_model_16', 'preprocess_16'):
+        return get_clip_model('ViT-B/16')[name == 'preprocess_16']
+    raise AttributeError(name)
 
 
 
@@ -96,7 +116,9 @@ class CLIPConvLoss(torch.nn.Module):
             }
 
         self.model, clip_preprocess = clip.load(
-            self.clip_model_name, args.device, jit=False)
+            self.clip_model_name, args.device, jit=False,
+            download_root=os.environ.get('FRIDA_CLIP_CACHE'))
+        self.model.requires_grad_(False)
 
         if self.clip_model_name.startswith("ViT"):
             self.visual_encoder = CLIPVisualEncoder(self.model)
@@ -229,6 +251,7 @@ augment_trans = get_image_augmentation(False)
 num_augs = 10
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 def clip_loss(img0, img1):
+    clip_model, _ = get_clip_model()
     img0_batch = torch.cat([augment_trans(img0) for n in range(num_augs)])
     img1_batch = torch.cat([augment_trans(img1) for n in range(num_augs)])
     img0_features = clip_model.encode_image(img0_batch)
@@ -248,9 +271,12 @@ clip_conv_layer_weights = [0, 0, 0, 0, 1.0]
 a = {'clip_model_name':'ViT-B/32','clip_conv_loss_type':'Cos','device':device,
     'num_aug_clip':num_augs,'augemntations':['affine'],
      'clip_fc_loss_weight':0.0,'clip_conv_layer_weights':clip_conv_layer_weights}
-clip_conv_loss_model = CLIPConvLoss(Dict2Class(a))
+clip_conv_loss_model = None
 
 def clip_conv_loss(painting, target):
+    global clip_conv_loss_model
+    if clip_conv_loss_model is None:
+        clip_conv_loss_model = CLIPConvLoss(Dict2Class(a))
     loss = 0
     clip_loss = clip_conv_loss_model(painting[:,:3], target)
     for key in clip_loss.keys():
@@ -273,11 +299,8 @@ augment_trans_text = transforms.Compose([
     transforms.Normalize((0.48145466, 0.4578275, 0.40821073), (0.26862954, 0.26130258, 0.27577711))
 ])
 
-import clip
-clip_model, preprocess = clip.load('ViT-B/32', device, jit=False)
-clip_model_16, preprocess_16 = clip.load('ViT-B/16', device, jit=False)
-
 def clip_text_loss(p, text_features, num_augs, text_features_16=None):
+    clip_model, _ = get_clip_model()
     loss = 0
     img_augs = []
     with warnings.catch_warnings():
@@ -291,7 +314,7 @@ def clip_text_loss(p, text_features, num_augs, text_features_16=None):
     # show_img(im_batch[0])
     image_features = clip_model.encode_image(im_batch)
     if text_features_16 is not None:
-        image_features_16 = clip_model.encode_image(im_batch)
+        image_features_16 = get_clip_model('ViT-B/16')[0].encode_image(im_batch)
     for n in range(num_augs):
         loss -= torch.cosine_similarity(text_features, image_features[n:n+1], dim=1)
         if text_features_16 is not None:
@@ -300,6 +323,7 @@ def clip_text_loss(p, text_features, num_augs, text_features_16=None):
     return loss / num_augs if text_features_16 is not None else loss / (2*num_augs)
 
 def clip_fc_loss(p, other_img, num_augs, text_features_16=None):
+    clip_model, _ = get_clip_model()
     loss = 0
     p_augs, other_img_augs = [], []
     with warnings.catch_warnings():
