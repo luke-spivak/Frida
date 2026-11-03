@@ -1,0 +1,7 @@
+{
+  "iterations": 581,
+  "best_validation_loss": 0.05222824960947037,
+  "training_strokes": 96,
+  "validation_strokes": 24,
+  "device": "cpu"
+}
