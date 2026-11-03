@@ -47,6 +47,350 @@ def configuration(planner, measured):
     return q
 
 
+@pytest.fixture
+def neutral_painter(calibrated_planner):
+    """Real planning, captured geometry, and no hardware/execution interface."""
+    from painter import Painter
+    from robot import SO101
+
+    p = calibrated_planner
+    p.scene.setRngSeed(101)
+    # Reconstructed final calibration-dot hover from the 2026-10-23 failure.
+    q = configuration(p, {
+        "shoulder_pan": 14.664331318465551 - OFFSETS["shoulder_pan"],
+        "shoulder_lift": 50.8568679069777 - OFFSETS["shoulder_lift"],
+        "elbow_flex": -32.00819962357561 - OFFSETS["elbow_flex"],
+        "wrist_flex": -18.849133831128174,
+        "wrist_roll": 92.78878492160855,
+        "gripper": -0.16801082469349207,
+    })
+    robot = SO101.__new__(SO101)
+    robot.motion_planner = p
+    robot.arm_joint_names = p.joint_names
+    # This fake cannot connect, write motor registers, or send actions.
+    robot.arm = Mock(spec=["get_observation"])
+    robot.arm.get_observation.return_value = {
+        **{f"{name}.pos": float(np.rad2deg(q[p.scene.getJointPositionIndices([name])[0]])
+                              - p.joint_offsets_deg[name]) for name in p.joint_names},
+        "gripper.pos": 8.938172043010754,
+    }
+    robot.execute_trajectory = Mock()
+    painter = Painter.__new__(Painter)
+    painter.opt = SimpleNamespace(
+        simulate=False, robot="so101", CANVAS_POSITION=[-0.004074, 0.2546],
+        CANVAS_WIDTH_M=0.279, CANVAS_HEIGHT_M=0.216,
+    )
+    painter.Z_CANVAS = 0.0015
+    painter.robot = robot
+    return painter, q
+
+
+@pytest.mark.parametrize("direct", [False, True], ids=["last-dot", "center"])
+def test_to_neutral_routes_offline(neutral_painter, monkeypatch, direct):
+    painter, q = neutral_painter
+    robot, p = painter.robot, painter.robot.motion_planner
+    center = np.array([0.3626, 0.004074, 0.0415])  # Robot coordinates.
+    neutral = np.array([0.1122, 0.2601, 0.025])
+    if direct:
+        q = p._solve_xyz(center, q)
+        robot.arm.get_observation.return_value.update({
+            f"{name}.pos": float(np.rad2deg(q[p.scene.getJointPositionIndices([name])[0]])
+                                 - p.joint_offsets_deg[name]) for name in p.joint_names
+        })
+    else:
+        # A completed dot normally leaves a previous command for continuity.
+        robot._last_arm_command_deg = {
+            name: robot.arm.get_observation.return_value[f"{name}.pos"] for name in p.joint_names
+        }
+    planned = []
+    plan = p.plan_xyz_path
+
+    def plan_offline(*args, **kwargs):
+        robot.execute_trajectory.assert_not_called()
+        trajectory = plan(*args, **kwargs)
+        planned.append(trajectory)
+        return trajectory
+
+    spy = Mock(side_effect=plan_offline)
+    monkeypatch.setattr(p, "plan_xyz_path", spy)
+    painter.to_neutral()
+    assert spy.call_count == 1
+    np.testing.assert_allclose(spy.call_args_list[0].args[0], [neutral])
+    assert spy.call_args.kwargs['travel_z'] == pytest.approx(.1015)
+    if not direct:
+        assert "previous_command_deg" in spy.call_args.kwargs
+    robot.arm.get_observation.assert_called_once()
+    robot.execute_trajectory.assert_called_once()
+    assert len(planned) == 1
+    trajectory = planned[0]
+    times, commands = robot.execute_trajectory.call_args.args
+    np.testing.assert_allclose(times, trajectory.times)
+    assert len(times) == len(commands) > 0
+    assert np.all(np.diff(times) > 0)
+    previous = q.copy()
+    positions = []
+    for command in commands:
+        assert command["gripper.pos"] == 8.938172043010754
+        current = configuration(p, {name: command[f"{name}.pos"] for name in p.joint_names})
+        grip_index = p.scene.getJointPositionIndices(["gripper"])[0]
+        current[grip_index] = q[grip_index]
+        assert p.scene.isValidConfiguration(current)
+        assert not motion_planner.hasCollisionsAlongPath(
+            p.scene, previous, current, max_step_size=0.005,
+        )
+        steps = max(1, int(np.ceil(np.max(np.abs(current - previous)) / 0.005)))
+        for fraction in np.linspace(0, 1, steps + 1):
+            assert p.brush_tilt_deg(previous + fraction * (current - previous)) <= 10.0
+        positions.append(p.scene.forwardKinematics(current, p.tip_frame, p.base_frame)[:3, 3])
+        previous = current
+    assert np.linalg.norm(positions[-1] - neutral) <= p.cartesian_path_tolerance
+    positions = np.asarray(positions)
+    # The horizontal transfer stays at clearance; low points remain over an endpoint.
+    low = positions[:, 2] < .1015 - p.cartesian_path_tolerance
+    start = p.scene.forwardKinematics(q, p.tip_frame, p.base_frame)[:3, 3]
+    distance = np.minimum(np.linalg.norm(positions[:, :2] - start[:2], axis=1),
+                          np.linalg.norm(positions[:, :2] - neutral[:2], axis=1))
+    assert np.all(distance[low] <= p.cartesian_path_tolerance)
+
+
+def test_to_neutral_failed_transfer_sends_no_commands(neutral_painter, monkeypatch):
+    painter, _ = neutral_painter
+    plan = Mock(side_effect=RuntimeError("clearance blocked"))
+    monkeypatch.setattr(painter.robot.motion_planner, "plan_xyz_path", plan)
+    with pytest.raises(RuntimeError, match="clearance blocked"):
+        painter.to_neutral()
+    assert plan.call_count == 1
+    painter.robot.execute_trajectory.assert_not_called()
+
+
+@pytest.mark.parametrize("error_type", [TimeoutError, RuntimeError])
+def test_to_neutral_execution_error_does_not_retry(neutral_painter, monkeypatch, error_type):
+    painter, _ = neutral_painter
+    p = painter.robot.motion_planner
+    trajectory = SimpleNamespace(joint_names=p.joint_names,
+                                 positions=[np.zeros(len(p.joint_names))], times=[0.0])
+    plan = Mock(return_value=trajectory)
+    monkeypatch.setattr(p, "plan_xyz_path", plan)
+    painter.robot.execute_trajectory.side_effect = error_type("motor did not settle")
+    with pytest.raises(error_type, match="motor did not settle"):
+        painter.to_neutral()
+    assert plan.call_count == 1
+    painter.robot.execute_trajectory.assert_called_once()
+
+
+def test_to_neutral_before_height_calibration_has_no_detour(neutral_painter, monkeypatch):
+    painter, _ = neutral_painter
+    del painter.Z_CANVAS
+    plan = Mock(side_effect=RuntimeError("direct blocked"))
+    monkeypatch.setattr(painter.robot.motion_planner, "plan_xyz_path", plan)
+    with pytest.raises(RuntimeError, match="direct blocked"):
+        painter.to_neutral()
+    assert plan.call_count == 1
+    painter.robot.execute_trajectory.assert_not_called()
+
+
+def test_to_neutral_invalid_start_is_not_retried(neutral_painter, monkeypatch):
+    from robot import MotionPlanningError
+    painter, _ = neutral_painter
+    plan = Mock(side_effect=ValueError("IK start violates joint limits"))
+    monkeypatch.setattr(painter.robot.motion_planner, "plan_xyz_path", plan)
+    with pytest.raises(MotionPlanningError, match="IK start violates joint limits"):
+        painter.to_neutral()
+    assert plan.call_count == 1
+    painter.robot.execute_trajectory.assert_not_called()
+
+
+def test_to_neutral_waypoint_follows_changed_canvas_settings(neutral_painter):
+    painter, _ = neutral_painter
+    painter.opt.CANVAS_POSITION = [0.02, 0.30]
+    painter.opt.CANVAS_HEIGHT_M = 0.18
+    painter.Z_CANVAS = -0.01
+    painter.robot.go_to_cartesian_pose = Mock()
+    painter.to_neutral()
+    call = painter.robot.go_to_cartesian_pose.call_args
+    assert call.kwargs == {'travel_z': pytest.approx(.09)}
+    np.testing.assert_allclose(call.args[0], [[-0.2601, 0.1122, 0.025]])
+
+
+@pytest.mark.parametrize("seed", [1, 42, 101])
+@pytest.mark.parametrize("direct", [False, True], ids=["neutral-start", "center-direct"])
+def test_stroke_approach_routes_offline(neutral_painter, monkeypatch, direct, seed):
+    painter, last_dot = neutral_painter
+    robot, p = painter.robot, painter.robot.motion_planner
+    center = np.array([0.3626, 0.004074, 0.0415])  # Robot coordinates.
+    target = np.array([0.3938398900982498, -0.0433680969532248, 0.0315])
+    # Reconstructed neutral-to-canvas approach matching the reported transit
+    # failure. The original live joint state was not recorded.
+    q = np.array([
+        -1.2943991676370146, -0.08022791027511039, 1.2175728684462248,
+        -1.1373357771087576, 1.6194753738087933, -0.0029323420698924296,
+    ])
+    if direct:
+        q = p._solve_xyz(center, last_dot)
+    painter._at_canvas = direct
+    p.scene.setRngSeed(seed)
+    robot.arm.get_observation.return_value.update({
+        f"{name}.pos": float(np.rad2deg(q[p.scene.getJointPositionIndices([name])[0]]))
+                      - p.joint_offsets_deg[name]
+        for name in p.joint_names
+    })
+    robot._last_arm_command_deg = {
+        name: robot.arm.get_observation.return_value[f"{name}.pos"] for name in p.joint_names
+    }
+    planned = []
+    native = p.plan_xyz_path
+
+    def plan_before_execution(*args, **kwargs):
+        robot.execute_trajectory.assert_not_called()
+        trajectory = native(*args, **kwargs)
+        planned.append(trajectory)
+        return trajectory
+
+    plan = Mock(side_effect=plan_before_execution)
+    monkeypatch.setattr(p, "plan_xyz_path", plan)
+    painter.approach_stroke(-target[1], target[0])
+    # At 2 mm, some neutral starts can take the direct route. Independently
+    # validate whichever route passes; never require an unnecessary detour.
+    assert plan.call_count in (1, 2)
+    if direct:
+        assert plan.call_count == 1
+    used_fallback = plan.call_count == 2
+    np.testing.assert_allclose(plan.call_args_list[0].args[0], [target])
+    if not direct:
+        assert plan.call_count == 1
+        assert plan.call_args.kwargs['travel_z'] == pytest.approx(.1015)
+    if used_fallback:
+        np.testing.assert_allclose(plan.call_args.args[0], [center, target])
+        assert plan.call_args_list[0].args[1] == plan.call_args_list[1].args[1]
+        assert plan.call_args_list[0].kwargs == plan.call_args_list[1].kwargs
+    robot.arm.get_observation.assert_called_once()
+    robot.execute_trajectory.assert_called_once()
+    assert len(planned) == 1
+
+    previous = q.copy()
+    positions = []
+    _, commands = robot.execute_trajectory.call_args.args
+    for command in commands:
+        assert command['gripper.pos'] == 8.938172043010754
+        current = configuration(p, {name: command[f"{name}.pos"] for name in p.joint_names})
+        gripper = p.scene.getJointPositionIndices(["gripper"])[0]
+        current[gripper] = q[gripper]
+        assert not motion_planner.hasCollisionsAlongPath(
+            p.scene, previous, current, max_step_size=0.005,
+        )
+        steps = max(1, int(np.ceil(np.max(np.abs(current - previous)) / 0.005)))
+        for fraction in np.linspace(0, 1, steps + 1):
+            sample = previous + fraction * (current - previous)
+            assert p.scene.isValidConfiguration(sample)
+            assert p.brush_tilt_deg(sample) <= 10.0
+        positions.append(p.scene.forwardKinematics(current, p.tip_frame, p.base_frame)[:3, 3])
+        previous = current
+    assert np.linalg.norm(positions[-1] - target) <= p.cartesian_path_tolerance
+    if used_fallback:
+        assert np.min(np.linalg.norm(np.asarray(positions) - center, axis=1)) <= p.cartesian_path_tolerance
+
+
+def test_stroke_approach_failed_routes_send_no_commands(neutral_painter, monkeypatch):
+    painter, _ = neutral_painter
+    painter._at_canvas = True  # Preserve the existing local-canvas fallback.
+    plan = Mock(side_effect=[RuntimeError("direct blocked"), RuntimeError("fallback blocked")])
+    monkeypatch.setattr(painter.robot.motion_planner, "plan_xyz_path", plan)
+    with pytest.raises(RuntimeError, match="fallback blocked"):
+        painter.approach_stroke(0.04, 0.39)
+    assert plan.call_count == 2
+    painter.robot.execute_trajectory.assert_not_called()
+
+
+def test_stroke_approach_waypoint_uses_current_canvas(neutral_painter):
+    painter, _ = neutral_painter
+    painter._at_canvas = True
+    painter.opt.CANVAS_POSITION = [0.02, 0.30]
+    painter.opt.CANVAS_HEIGHT_M = 0.18
+    painter.Z_CANVAS = -0.01
+    painter.robot.go_to_cartesian_pose = Mock()
+    painter.approach_stroke(0.05, 0.40)
+    call = painter.robot.go_to_cartesian_pose.call_args
+    np.testing.assert_allclose(call.args[0], [[0.05, 0.40, 0.02]])
+    np.testing.assert_allclose(call.kwargs['fallback_positions'],
+                               [[0.02, 0.39, 0.03], [0.05, 0.40, 0.02]])
+
+
+@pytest.mark.parametrize("simulate,robot_type", [(True, "so101"), (False, "franka")])
+def test_stroke_approach_simulation_and_other_robots(neutral_painter, simulate, robot_type):
+    painter, _ = neutral_painter
+    painter.opt.simulate = simulate
+    painter.opt.robot = robot_type
+    painter.move_to = Mock()
+    painter.robot.go_to_cartesian_pose = Mock()
+    painter.approach_stroke(0.04, 0.39)
+    painter.robot.go_to_cartesian_pose.assert_not_called()
+    if simulate:
+        painter.move_to.assert_not_called()
+    else:
+        painter.move_to.assert_called_once_with(0.04, 0.39, 0.0315, speed=0.4)
+
+
+@pytest.mark.parametrize("approach_fails", [False, True])
+def test_brush_stroke_uses_approach_before_direct_descent(monkeypatch, approach_fails):
+    import torch
+    from painter import Painter
+    from brush_stroke import BrushStroke
+
+    painter = Painter.__new__(Painter)
+    painter.opt = SimpleNamespace(
+        brush_length=None, X_CANVAS_MIN=-0.14, X_CANVAS_MAX=0.14,
+        Y_CANVAS_MIN=0.25, Y_CANVAS_MAX=0.47,
+    )
+    painter.H_coord = np.array([[1, 0, 0.01], [0, 1, -0.02], [0, 0, 1]])
+    painter.Z_CANVAS, painter.Z_MAX_CANVAS = 0.0015, -0.009
+    painter.approach_stroke = Mock(side_effect=RuntimeError("approach failed") if approach_fails else None)
+    painter.move_to = Mock()
+    painter.move_to_trajectories = Mock(return_value=True)
+    stroke = SimpleNamespace(stroke_length=torch.tensor(0.02), stroke_bend=torch.tensor(0.003),
+                             stroke_z=torch.tensor(0.4), stroke_alpha=torch.tensor(0.0))
+    if approach_fails:
+        with pytest.raises(RuntimeError, match="approach failed"):
+            BrushStroke.execute(stroke, painter, 0.02, 0.35, 0.0)
+        painter.move_to.assert_not_called()
+        painter.move_to_trajectories.assert_not_called()
+    else:
+        assert BrushStroke.execute(stroke, painter, 0.02, 0.35, 0.0)
+        assert painter.move_to.call_count == 2  # Descent and final lift only.
+        np.testing.assert_allclose(painter.move_to.call_args_list[0].args, [0.03, 0.33, 0.0065])
+        assert painter.move_to.call_args_list[0].kwargs == {'speed': 0.1}
+        assert painter.move_to.call_args.args[2] == 0.0415
+        painter.move_to_trajectories.assert_called_once()
+    painter.approach_stroke.assert_called_once()
+    np.testing.assert_allclose(painter.approach_stroke.call_args.args, [0.03, 0.33])
+
+
+@pytest.mark.parametrize("use_cache", [True, False])
+def test_to_neutral_startup_loads_height_only_when_using_cache(tmp_path, monkeypatch, use_cache):
+    import painter as painter_module
+
+    (tmp_path / "brush_tip_to_table_calib.json").write_text(json.dumps(
+        {"Z_CANVAS": 0.0015, "Z_MAX_CANVAS": -0.009}))
+    robot = Mock(spec=["good_morning_robot"])
+    monkeypatch.setattr(painter_module, "SO101", Mock(return_value=robot))
+    monkeypatch.setattr(painter_module, "WebCam", Mock(return_value=object()))
+
+    class StopBeforeMotion(Exception):
+        pass
+
+    def check_height(painter):
+        assert hasattr(painter, "Z_CANVAS") is use_cache
+        if use_cache:
+            assert painter.Z_CANVAS == 0.0015
+            assert painter.Z_MAX_CANVAS == -0.009
+        raise StopBeforeMotion
+
+    monkeypatch.setattr(painter_module.Painter, "to_neutral", check_height)
+    opt = SimpleNamespace(use_cache=use_cache, cache_dir=str(tmp_path),
+                          robot="so101", simulate=False, writer=Mock())
+    with pytest.raises(StopBeforeMotion):
+        painter_module.Painter(opt)
+
+
 def test_scene_sampling_and_validation_share_calibrated_bounds(calibrated_planner):
     p = calibrated_planner
     for name, expected in EXPECTED.items():
@@ -203,7 +547,7 @@ def test_station_sequence_after_ik_setup_from_several_starts(calibrated_planner,
             previous = current
         assert aligned
         achieved = p.scene.forwardKinematics(previous, p.tip_frame, p.base_frame)[:3, 3]
-        assert np.linalg.norm(achieved - target) <= 0.001
+        assert np.linalg.norm(achieved - target) <= p.cartesian_path_tolerance
         assert p.brush_tilt_deg(previous) <= 10.0
         np.testing.assert_allclose(p.scene.getCurrentJointPositions(), q, atol=1e-12)
         q = previous
@@ -258,10 +602,10 @@ def test_circular_dipping_offline(calibrated_planner, arm_model_deg, hover_heigh
     water = np.array([-0.2129, 0.1931, -0.012])  # Captured current water setting.
     hover = water + [0.0, 0.0, hover_height]
     painter.opt = SimpleNamespace(WATER_POSITION=water, HOVER_FACTOR=hover_height)
-    painter.move_to = Mock()
+    painter.travel_to = Mock()
     painter.move_to_trajectories = Mock()
     painter.dip_brush_in_water()
-    painter.move_to.assert_called_once_with(*hover)
+    painter.travel_to.assert_called_once_with(*hover)
     painter.move_to_trajectories.assert_called_once()
     positions, orientations = painter.move_to_trajectories.call_args.args
     positions = np.asarray(positions)
@@ -284,7 +628,7 @@ def test_circular_dipping_offline(calibrated_planner, arm_model_deg, hover_heigh
     q[gripper] = np.deg2rad(-0.168010825)
     # Test the dipping path from a solved hover pose; arbitrary folded-to-hover
     # transits are covered separately and need not admit a straight line.
-    h = np.asarray(painter.move_to.call_args.args)
+    h = np.asarray(painter.travel_to.call_args.args)
     q = p._solve_xyz(np.array([h[1], -h[0], h[2]]), q)
     for frida in (positions,):
         targets = np.column_stack((frida[:, 1], -frida[:, 0], frida[:, 2]))
@@ -315,8 +659,81 @@ def test_circular_dipping_offline(calibrated_planner, arm_model_deg, hover_heigh
             previous = current
         assert aligned
         achieved = p.scene.forwardKinematics(previous, p.tip_frame, p.base_frame)[:3, 3]
-        assert np.linalg.norm(achieved - targets[-1]) <= 0.001
+        assert np.linalg.norm(achieved - targets[-1]) <= p.cartesian_path_tolerance
         assert previous[gripper] == q[gripper]
+        q = previous
+
+
+@pytest.mark.parametrize("pattern", ["corners", "opposite-corners", *range(10)])
+def test_rag_wiping_within_30_mm_offline(calibrated_planner, monkeypatch, pattern):
+    from painter import Painter
+
+    # Capture the real routine's requests without constructing hardware.
+    painter = Painter.__new__(Painter)
+    rag = np.array([-0.2601, 0.1122, 0.0015])
+    hover = rag + [0.0, 0.0, 0.1]
+    painter.opt = SimpleNamespace(RAG_POSTITION=rag, HOVER_FACTOR=0.1)
+    painter.travel_to = Mock()
+    painter.move_to_trajectories = Mock()
+    if isinstance(pattern, str):
+        corners = np.array([[2, 2], [-2, -2], [-2, 2], [2, -2], [2, 2]])
+        if pattern == "opposite-corners":
+            corners *= -1
+        samples = iter(corners)
+        monkeypatch.setattr(np.random, "randn", lambda *shape: next(samples))
+    else:
+        monkeypatch.setattr(np.random, "randn", np.random.RandomState(pattern).randn)
+    painter.rub_brush_on_rag()
+    painter.travel_to.assert_called_once_with(*hover)
+    positions, orientations = painter.move_to_trajectories.call_args.args
+    positions = np.asarray(positions)
+    assert positions.shape == (8, 3)
+    np.testing.assert_allclose(positions[[0, -1]], [hover, hover])
+    np.testing.assert_allclose(positions[1], rag)
+    offsets = positions[2:-1, :2] - rag[:2]
+    assert np.max(np.abs(offsets)) <= 0.03 + 1e-12
+    if isinstance(pattern, str):
+        np.testing.assert_allclose(np.abs(offsets), 0.03)
+    np.testing.assert_allclose(positions[1:-1, 2], rag[2])
+    assert orientations == [None] * len(positions)
+
+    p = calibrated_planner
+    p.scene.setRngSeed(101)
+    # Reconstructed water hover with the current 1.5 mm contact height.
+    q = np.array([
+        -0.9417693741214812, -0.7740812248273176, 1.03213346761731,
+        -0.2574752578477478, 1.6183358256207112, -0.0029323420698924296,
+    ])
+    gripper = p.scene.getJointPositionIndices(["gripper"])[0]
+    # Validate the transfer, descent, five wipes, and final lift separately
+    # through the production planner. There is no execution interface here.
+    for frida in (hover[None, :], positions):
+        targets = np.column_stack((frida[:, 1], -frida[:, 0], frida[:, 2]))
+        measured = {
+            name: float(np.rad2deg(q[p.scene.getJointPositionIndices([name])[0]]))
+                  - p.joint_offsets_deg.get(name, 0.0)
+            for name in p.scene.getJointNames()
+        }
+        trajectory = p.plan_xyz_path(targets, measured)
+        assert trajectory is not None
+        assert "gripper" not in trajectory.joint_names
+        previous = q.copy()
+        for row in trajectory.positions:
+            current = q.copy()
+            current[p.arm_indices] = row
+            assert not motion_planner.hasCollisionsAlongPath(
+                p.scene, previous, current, max_step_size=0.005,
+            )
+            steps = max(1, int(np.ceil(np.max(np.abs(current - previous)) / 0.005)))
+            for fraction in np.linspace(0, 1, steps + 1):
+                sample = previous + fraction * (current - previous)
+                assert p.scene.isValidConfiguration(sample)
+                assert p.brush_tilt_deg(sample) <= 10.0
+                assert sample[gripper] == q[gripper]
+            previous = current
+        achieved = p.scene.forwardKinematics(previous, p.tip_frame, p.base_frame)[:3, 3]
+        assert np.linalg.norm(achieved - targets[-1]) <= p.cartesian_path_tolerance
+        np.testing.assert_allclose(p.scene.getCurrentJointPositions(), q)
         q = previous
 
 
@@ -350,7 +767,7 @@ def test_dipping_patterns_preserve_limits_collisions_and_tilt(
             assert p.brush_tilt_deg(previous + fraction * (current - previous)) <= 10.0
         previous = current
     achieved = p.scene.forwardKinematics(previous, p.tip_frame, p.base_frame)[:3, 3]
-    assert np.linalg.norm(achieved - targets[-1]) <= 0.001
+    assert np.linalg.norm(achieved - targets[-1]) <= p.cartesian_path_tolerance
     np.testing.assert_allclose(p.scene.getCurrentJointPositions(), start, atol=1e-12)
     modes = [call.kwargs['stop_at_waypoints'] for call in generate.call_args_list]
     # Timing is now per Cartesian leg. Each leg starts with cubic timing;
@@ -520,7 +937,7 @@ def test_hello_world_offline(calibrated_planner, air_test):
                 closest = origins + fractions[:, None] * segments
                 assert np.min(np.linalg.norm(closest - xyz, axis=1)) <= 0.002
             previous = current
-        assert np.linalg.norm(xyz - requested[-1]) <= 0.001
+        assert np.linalg.norm(xyz - requested[-1]) <= p.cartesian_path_tolerance
         observation.update(commands[-1])
 
     robot.execute_trajectory = Mock(side_effect=execute_offline)
@@ -531,7 +948,7 @@ def test_hello_world_offline(calibrated_planner, air_test):
     assert robot.execute_trajectory.call_count == 15
     robot.arm.connect.assert_not_called()
     robot.arm.send_action.assert_not_called()
-    assert robot.get_cartesian_pose()[2] == pytest.approx(-0.012 + (0.02 if air_test else 0) + 0.05, abs=0.001)
+    assert robot.get_cartesian_pose()[2] == pytest.approx(-0.012 + (0.02 if air_test else 0) + 0.05, abs=p.cartesian_path_tolerance)
 
 
 @pytest.mark.parametrize("phase, measured_arm", [
@@ -575,7 +992,7 @@ def test_quintic_replays_recorded_diagnostic_poses(calibrated_planner, phase, me
             fraction = np.clip(np.dot(tip - xyz, displacement) / np.dot(displacement, displacement), 0, 1)
             assert np.linalg.norm(tip - (xyz + fraction * displacement)) <= .002
         previous = q
-    assert np.linalg.norm(tip - targets[-1]) <= .001
+    assert np.linalg.norm(tip - targets[-1]) <= p.cartesian_path_tolerance
     np.testing.assert_allclose(p.scene.getCurrentJointPositions(), start, atol=1e-12)
 
 

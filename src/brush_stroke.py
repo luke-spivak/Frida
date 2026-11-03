@@ -299,7 +299,7 @@ class BrushStroke(nn.Module):
             )
         path = BrushStroke.get_rotated_trajectory(rotation, trajectory)
         
-        painter.move_to(x_start+path[0,0], y_start+path[0,1], painter.Z_CANVAS + 0.03, speed=0.4)
+        painter.approach_stroke(x_start+path[0,0], y_start+path[0,1])
         start_x, start_y = x_start+path[0,0], y_start+path[0,1]
         painter.move_to(start_x, start_y,
                         painter.canvas_z(start_x, start_y, painter.Z_CANVAS + 0.005), speed=0.1)

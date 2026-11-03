@@ -28,6 +28,7 @@ from camera.innomaker import WebCam
 
 
 PERPENDICULAR_QUATERNION = np.array([1.77622069e-04,   9.23865441e-01,  -3.82717408e-01,  -1.73978366e-05])
+SO101_NEUTRAL_POSITION = (-0.2601, 0.1122, 0.025)
 
 def shift_image(X, dx, dy):
     X = np.roll(X, dy, axis=0)
@@ -54,6 +55,7 @@ class Painter():
         kwargs:
         '''
         self.opt = opt # Options object
+        self._at_canvas = False
         use_cache = opt.use_cache
 
         # Reject stale/malformed Z grids before connecting to hardware.
@@ -204,8 +206,12 @@ class Painter():
         if not self.opt.simulate:
             y = 0.4 
             if self.opt.robot == 'so101':
-                x, y, z = -0.2601, 0.1122, 0.025
-                self.move_to_trajectories([[x,y,z]], [None])
+                neutral = SO101_NEUTRAL_POSITION
+                # Fresh calibration has no known canvas reference yet.
+                if hasattr(self, 'Z_CANVAS'):
+                    return self.travel_to(*neutral)
+                self._at_canvas = False
+                self.robot.go_to_cartesian_pose([neutral])
                 return            
             elif self.opt.robot == 'franka':
                 y = 0.4
@@ -240,6 +246,19 @@ class Painter():
     def move_to(self, x,y,z, q=None, method='direct', speed=0.05):
         self._move(x,y,z, q=q, method=method, speed=speed)
 
+    def travel_to(self, x, y, z):
+        """Leave the canvas/station via a fully planned 10 cm SO101 transfer.
+
+        Only station transfers use this helper; contact strokes and calibration
+        moves retain their explicit paths. All transfer legs pass planning before
+        any commands are sent, with no lower direct-route fallback.
+        """
+        self._at_canvas = False
+        if self.opt.simulate:
+            return
+        if self.opt.robot != 'so101':
+            return self.move_to(x, y, z)
+        return self.robot.go_to_cartesian_pose([[x, y, z]], travel_z=self.Z_CANVAS + 0.10)
 
     def canvas_z(self, x, y, z):
         """Correct a canvas Z request before IK, using final commanded XY.
@@ -252,6 +271,27 @@ class Painter():
             return z
         return z + grid.contact_z(x, y) - self.Z_CANVAS
 
+    def approach_stroke(self, x, y):
+        """Return from a station at 10 cm; preserve local canvas approaches."""
+        if self.opt.simulate:
+            return
+        target = [x, y, self.canvas_z(x, y, self.Z_CANVAS + 0.03)]
+        if self.opt.robot != 'so101':
+            return self.move_to(*target, speed=0.4)
+        if not getattr(self, '_at_canvas', False):
+            result = self.travel_to(*target)
+            self._at_canvas = True
+            return result
+        self._at_canvas = False  # A failed approach must not retain stale state.
+        center = canvas_to_global_coordinates(
+            0.5, 0.5, self.Z_CANVAS + 0.04, self.opt)
+        center = [center[0], center[1], self.canvas_z(*center)]
+        # The robot plans directly first, then validates both fallback legs
+        # from the same start before sending any movement commands.
+        result = self.robot.go_to_cartesian_pose(
+            [target], fallback_positions=[center, target])
+        self._at_canvas = True
+        return result
 
     def locate_items(self):
         self.dip_brush_in_water()
@@ -282,7 +322,7 @@ class Painter():
     def dip_brush_in_water(self):
         x, y, z = self.opt.WATER_POSITION
         hover = [x, y, z + self.opt.HOVER_FACTOR]
-        self.move_to(*hover)
+        self.travel_to(*hover)
         positions = [hover, [x, y, z]]
         radius = 0.005  # One 5 mm radius circle, at the existing dip depth.
         for angle in np.linspace(0.0, 2.0 * np.pi, 13):
@@ -292,12 +332,12 @@ class Painter():
         self.move_to_trajectories(positions, orientations)
 
     def rub_brush_on_rag(self):
-        self.move_to(self.opt.RAG_POSTITION[0],self.opt.RAG_POSTITION[1],self.opt.RAG_POSTITION[2]+self.opt.HOVER_FACTOR, speed=0.3)
+        self.travel_to(self.opt.RAG_POSTITION[0],self.opt.RAG_POSTITION[1],self.opt.RAG_POSTITION[2]+self.opt.HOVER_FACTOR)
         positions = []
         positions.append([self.opt.RAG_POSTITION[0],self.opt.RAG_POSTITION[1],self.opt.RAG_POSTITION[2]+self.opt.HOVER_FACTOR])
         positions.append([self.opt.RAG_POSTITION[0],self.opt.RAG_POSTITION[1],self.opt.RAG_POSTITION[2]])
         for i in range(5):
-            noise = np.clip(np.random.randn(2)*0.06, a_min=-.06, a_max=0.06)
+            noise = np.clip(np.random.randn(2)*0.03, a_min=-.03, a_max=0.03)
             positions.append([self.opt.RAG_POSTITION[0]+noise[0],self.opt.RAG_POSTITION[1]+noise[1],self.opt.RAG_POSTITION[2]])
         positions.append([self.opt.RAG_POSTITION[0],self.opt.RAG_POSTITION[1],self.opt.RAG_POSTITION[2]+self.opt.HOVER_FACTOR])
         orientations = [None]*len(positions)
@@ -305,7 +345,6 @@ class Painter():
 
     def clean_paint_brush(self):
         if self.opt.simulate: return
-        self.move_to(self.opt.WATER_POSITION[0],self.opt.WATER_POSITION[1],self.opt.WATER_POSITION[2]+0.09, speed=0.3)
         self.dip_brush_in_water()
         self.rub_brush_on_rag()
 
@@ -318,14 +357,20 @@ class Painter():
         y = self.opt.PALLETTE_POSITION[1] + y_offset
         z = self.opt.PALLETTE_POSITION[2] 
         
-        self.move_to(x,y,z+self.opt.HOVER_FACTOR)
+        self.travel_to(x,y,z+self.opt.HOVER_FACTOR)
 
         positions, orientations = [], []
         positions.append([x,y,z+self.opt.HOVER_FACTOR])
         positions.append([x,y,z+0.02])
         for i in range(3):
-            noise = np.clip(np.random.randn(2)*0.004, a_min=-.009, a_max=0.009)
-            positions.append([x+noise[0],y+noise[1],z])
+            noise = np.clip(np.random.randn(2)*0.008, -0.015, 0.015)
+            dab_x, dab_y = x + noise[0], y + noise[1]
+            # Move sideways only after lifting clear of the paint.
+            positions.extend([
+                [dab_x, dab_y, z + 0.02],
+                [dab_x, dab_y, z],
+                [dab_x, dab_y, z + 0.02],
+            ])
         positions.append([x,y,z + 0.02])
         positions.append([x,y,z+self.opt.HOVER_FACTOR])
         orientations = [None]*len(positions)
@@ -614,7 +659,7 @@ class Painter():
                             self.clean_paint_brush()
                             self.get_paint(0)
                             strokes_without_cleaning, strokes_without_getting_new_paint = 0, 0
-                        if strokes_without_getting_new_paint >= 4:
+                        if strokes_without_getting_new_paint >= self.opt.how_often_to_get_paint:
                             self.get_paint(0)
                             strokes_without_getting_new_paint = 0
                         strokes_without_getting_new_paint += 1
@@ -710,6 +755,8 @@ class Painter():
                             settings['MAX_ALPHA'] = self.opt.MAX_ALPHA
                             settings['CANVAS_WIDTH_M'] = self.opt.CANVAS_WIDTH_M
                             settings['CANVAS_HEIGHT_M'] = self.opt.CANVAS_HEIGHT_M
+                            settings['paint_care'] = {'reload_every': self.opt.how_often_to_get_paint,
+                                                      'clean_every': 12, 'wash_passes': 1}
                             json.dump(settings, f, indent=4)
                     
                         # Go back to empty because memory gets too large

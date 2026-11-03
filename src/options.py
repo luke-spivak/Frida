@@ -70,7 +70,8 @@ class Options(object):
         parser.add_argument('--num_augs', type=int, default=30)
 
         # Painting Parameters
-        parser.add_argument('--how_often_to_get_paint', type=int, default=4)
+        parser.add_argument('--how_often_to_get_paint', type=int, default=4,
+                            help='Reload paint after this many strokes in painting and library collection (also after cleaning/color changes).')
 
         # Logging Parameters
         parser.add_argument("--tensorboard_dir", type=str,

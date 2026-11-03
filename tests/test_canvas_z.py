@@ -271,6 +271,22 @@ def painter(opt):
     return p
 
 
+def test_canvas_approach_is_corrected_but_station_travel_plane_and_neutral_are_not(painter):
+    p = painter
+    p.approach_stroke(.03, .34)
+    call = p.robot.go_to_cartesian_pose.call_args
+    np.testing.assert_allclose(call.args[0], [[.03, .34, surface(.03, .34)+.03]])
+    assert call.kwargs == {"travel_z": pytest.approx(.1015)}
+    # The next on-canvas approach retains its height-corrected center fallback.
+    p.approach_stroke(.03, .34)
+    call = p.robot.go_to_cartesian_pose.call_args
+    center_x, center_y = -.004074, .3626
+    np.testing.assert_allclose(call.kwargs["fallback_positions"][0],
+                               [center_x, center_y, surface(center_x, center_y)+.04])
+    p.to_neutral()
+    call = p.robot.go_to_cartesian_pose.call_args
+    np.testing.assert_allclose(call.args[0], [[-.2601, .1122, .025]])
+    assert call.kwargs == {"travel_z": pytest.approx(.1015)}
 
 
 def test_stations_and_raw_moves_do_not_receive_canvas_correction(painter):
@@ -284,3 +300,32 @@ def test_stations_and_raw_moves_do_not_receive_canvas_correction(painter):
     assert p.robot.go_to_cartesian_pose.call_args.args[0] == [0, .36, .02]
 
 
+def test_every_stroke_sample_uses_corrected_and_clamped_xy(painter):
+    import torch
+    from brush_stroke import BrushStroke
+    p = painter
+    p.opt.brush_length = None
+    p.opt.X_CANVAS_MIN, p.opt.X_CANVAS_MAX = -.142574, .134426
+    p.opt.Y_CANVAS_MIN, p.opt.Y_CANVAS_MAX = .2556, .4696
+    p.H_coord = np.array([[1, 0, .01], [0, 1, -.02], [0, 0, 1]])
+    p.approach_stroke, p.move_to = Mock(), Mock()
+    p.move_to_trajectories = Mock(return_value=True)
+    stroke = SimpleNamespace(stroke_length=torch.tensor(.06), stroke_bend=torch.tensor(.003),
+                             stroke_z=torch.tensor(.4), stroke_alpha=torch.tensor(0.))
+    grid = p.canvas_z_calibration
+    p.canvas_z_calibration = None
+    BrushStroke.execute(stroke, p, .10, .35, 0.)
+    baseline = np.array(p.move_to_trajectories.call_args.args[0])
+    original_moves = list(p.move_to.call_args_list)
+    p.move_to.reset_mock()
+    p.canvas_z_calibration = grid
+    BrushStroke.execute(stroke, p, .10, .35, 0.)
+    actual = np.array(p.move_to_trajectories.call_args.args[0])
+    np.testing.assert_allclose(actual[:, :2], baseline[:, :2])
+    assert actual[:, 0].max() == p.opt.X_CANVAS_MAX  # Exercises edge clamping.
+    np.testing.assert_allclose(actual[:, 2]-baseline[:, 2],
+                               [grid.contact_z(x, y)-p.Z_CANVAS for x, y in actual[:, :2]])
+    for old, new in zip(original_moves, p.move_to.call_args_list):
+        x, y, z = old.args
+        np.testing.assert_allclose(new.args, [x, y, z+grid.contact_z(x, y)-p.Z_CANVAS])
+    np.testing.assert_allclose(p.approach_stroke.call_args.args, [.11, .33])

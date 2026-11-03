@@ -528,13 +528,17 @@ class SO101MotionPlanner:
         finally:
             self.scene.setJointPositions(q_start)
 
-    def plan_xyz_path(self, positions, current_joints_deg, *, previous_command_deg=None):
+    def plan_xyz_path(self, positions, current_joints_deg, *, previous_command_deg=None,
+                      travel_z=None):
         """
         positions: target XYZ points in robot base coordinates, meters.
         current_joints_deg: arm joint observations in degrees, before offsets;
                             gripper is already a MODEL angle in degrees.
         previous_command_deg: optional last completed arm command in servo
                               degrees, within 2 degrees of the measured pose.
+        travel_z: optional minimum transit Z for a single destination. Lift at
+                  the starting XY, traverse horizontally, then descend at the
+                  destination XY. Never descend before the horizontal traverse.
 
         Returns a RoboPlan JointTrajectory. Does not move the arm.
         Follow the Cartesian polyline (2 mm model tolerance), stopping with
@@ -553,6 +557,8 @@ class SO101MotionPlanner:
             or not np.all(np.isfinite(points))
         ):
             raise ValueError("Expected finite XYZ points with shape (N, 3)")
+        if travel_z is not None and (len(points) != 1 or not np.isfinite(travel_z)):
+            raise ValueError("travel_z requires one destination and a finite height")
 
         # Populate the complete model state by joint name.
         q_full = self.scene.getCurrentJointPositions().copy()
@@ -588,6 +594,11 @@ class SO101MotionPlanner:
             if hasCollisionsAlongPath(self.scene, q_full, q, max_step_size=0.01):
                 raise RuntimeError("Planned trajectory intersects an obstacle")
         start_xyz = self.scene.forwardKinematics(q, self.tip_frame, self.base_frame)[:3, 3]
+        if travel_z is not None:
+            target = points[0]
+            height = max(float(travel_z), float(start_xyz[2]), float(target[2]))
+            points = np.array([[start_xyz[0], start_xyz[1], height],
+                               [target[0], target[1], height], target])
         corners = self._cartesian_corners(np.vstack((start_xyz, points)))
         if len(corners) == 1 and self.brush_tilt_deg(q) > self.brush_tilt_tolerance_deg:
             corners.append(corners[0].copy())  # Align in place if feasible.
