@@ -1,4 +1,10 @@
-from dslr_gphoto import *
+
+if __package__:
+    from ._bootstrap import ROOT, SOURCE_DIR
+else:
+    from _bootstrap import ROOT, SOURCE_DIR
+
+from camera.dslr_gphoto import *
 
 cam = camera_init()
 

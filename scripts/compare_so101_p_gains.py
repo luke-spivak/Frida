@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Compare P=32, 40, 48, 56 on each of the five SO101 arm joints, one at a time.
 
-Run from src: python compare_so101_p_gains.py --execute
+Run from src: python ../scripts/compare_so101_p_gains.py --execute
 Without --execute this only prints settings, without loading hardware drivers.
 Start in clear air: direct servo commands have no IK/collision checking. Other
 joints (including the gripper) hold their measured pose. Only P is tuned: I, D,
@@ -12,6 +12,12 @@ again on exit. Do not run another bus client. Each test requests a tiny step
 from the measured joint angle and holds that target fixed for 2.5 seconds,
 then returns toward the original center. Use --joints to select fewer joints.
 """
+
+if __package__:
+    from ._bootstrap import ROOT, SOURCE_DIR
+else:
+    from _bootstrap import ROOT, SOURCE_DIR
+
 
 import argparse
 import csv
@@ -30,7 +36,6 @@ ADJACENT_REGISTER = "Register_25"
 UNCHANGED_REGISTERS = ("I_Coefficient", "D_Coefficient", "CW_Dead_Zone",
                        "CCW_Dead_Zone", STARTUP_REGISTER, ADJACENT_REGISTER)
 JOINTS = (*ARM_JOINTS, "gripper")
-ROOT = Path(__file__).resolve().parent.parent
 CALIBRATION = Path.home() / ".cache/huggingface/lerobot/calibration/robots/so_follower/my_arm.json"
 REGISTERS = (
     "Firmware_Major_Version", "Firmware_Minor_Version", "Angular_Resolution",

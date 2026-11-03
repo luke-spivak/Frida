@@ -1,3 +1,9 @@
+
+if __package__:
+    from ._bootstrap import ROOT, SOURCE_DIR
+else:
+    from _bootstrap import ROOT, SOURCE_DIR
+
 from options import Options
 from camera.innomaker import WebCam
 import matplotlib.pyplot as plt
@@ -16,7 +22,7 @@ def test_capture_image(camera: WebCam):
 def test_get_canvas(camera: WebCam):
     canvas = camera.get_canvas()
     
-    capture_dir = 'captures'
+    capture_dir = ROOT / 'outputs/captures'
     os.makedirs(capture_dir, exist_ok=True)
     file_name = os.path.join(capture_dir, str(time.time()) + '.jpg')
     success = cv2.imwrite(file_name, canvas)

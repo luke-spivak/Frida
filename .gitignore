@@ -4,3 +4,16 @@
 *.gif
 src/cache/colors_updated.npt
 src/cache/next_brush_strokes.csv
+.DS_Store
+.vscode/
+/outputs/captures/
+/outputs/
+my_materials.json
+stroke_plan.json
+# Local Runpod configuration and credentials
+/src/remote/runpod.json
+/.env.runpod
+/.venv-runpod/
+
+__pycache__/
+.pytest_cache/

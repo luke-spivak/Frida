@@ -33,7 +33,7 @@ def test_loaded_offsets_are_applied_once_and_inverted_for_every_command(tmp_path
     }
     path = tmp_path / "offsets.json"
     path.write_text(json.dumps({"joint_offsets_deg": offsets}))
-    model_dir = Path(__file__).resolve().parents[1] / "SO101"
+    model_dir = Path(__file__).resolve().parents[1] / "src/SO101"
     planner = SO101MotionPlanner(
         urdf_path=model_dir / "so101_brush_tip_nominal.urdf",
         srdf_path=model_dir / "so101_arm.srdf",

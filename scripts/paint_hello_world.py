@@ -1,14 +1,20 @@
 """Draw HELLO / WORLD with the SO101, using the existing checked motion planner.
 
 Run from src (the brush/pen should already be loaded and clamped):
-    python paint_hello_world.py                       # SVG preview only
-    python paint_hello_world.py --execute --air       # 20 mm above the canvas
-    python paint_hello_world.py --execute --canvas    # at calibrated touch height
+    python ../scripts/paint_hello_world.py                       # SVG preview only
+    python ../scripts/paint_hello_world.py --execute --air       # 20 mm above the canvas
+    python ../scripts/paint_hello_world.py --execute --canvas    # at calibrated touch height
 
 Also usable from painter_test.py:
     from paint_hello_world import paint_hello_world
     paint_hello_world(painter, air_test=True)
 """
+
+if __package__:
+    from ._bootstrap import ROOT, SOURCE_DIR
+else:
+    from _bootstrap import ROOT, SOURCE_DIR
+
 
 import argparse
 import json
@@ -30,7 +36,6 @@ LETTERS = {
           [(.5, .5), (1, 0)]],
     "D": [[(0, 0), (0, 1), (.65, 1), (1, .75), (1, .25), (.65, 0), (0, 0)]],
 }
-SOURCE_DIR = Path(__file__).resolve().parent
 
 
 def hello_world_strokes(opt, z, letter_height=0.02):

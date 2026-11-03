@@ -14,7 +14,7 @@ from robot import SO101
 
 @pytest.fixture(scope="module")
 def fk_planner(tmp_path_factory, lerobot_calibration_path):
-    root = Path(__file__).resolve().parents[1] / "SO101"
+    root = Path(__file__).resolve().parents[1] / "src/SO101"
     offsets = tmp_path_factory.mktemp("fk") / "offsets.json"
     offsets.write_text(json.dumps({
         "shoulder_pan": 3.0, "shoulder_lift": -1.5, "elbow_flex": -5.2,

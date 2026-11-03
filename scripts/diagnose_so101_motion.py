@@ -1,13 +1,19 @@
 """Record one relative lift and one straight stroke; default is OFFLINE.
 
-    python diagnose_so101_motion.py
-    python diagnose_so101_motion.py --execute
-    python diagnose_so101_motion.py --execute --read-every 0
+    python ../scripts/diagnose_so101_motion.py
+    python ../scripts/diagnose_so101_motion.py --execute
+    python ../scripts/diagnose_so101_motion.py --execute --read-every 0
 
 Execution starts at the current brush position: +20 mm Z, then +40 mm FRIDA X.
 Position the brush in clear air before running with --execute. There is no
 approach, descent, or return move. The normal planner and executor are reused.
 """
+
+if __package__:
+    from ._bootstrap import ROOT, SOURCE_DIR
+else:
+    from _bootstrap import ROOT, SOURCE_DIR
+
 
 import argparse
 import csv
@@ -20,7 +26,6 @@ from types import SimpleNamespace
 
 import numpy as np
 
-SOURCE_DIR = Path(__file__).resolve().parent
 
 
 class MotionLog:
@@ -239,7 +244,7 @@ def main(argv=None):
     parser.add_argument('--lift-mm', type=float, default=20)
     parser.add_argument('--stroke-mm', type=float, default=40, help='Signed displacement along the selected FRIDA axis')
     parser.add_argument('--axis', choices=['x', 'y'], default='x')
-    parser.add_argument('--start-joints', type=Path, default=SOURCE_DIR / 'so101_offsets.json', help='Saved observation for OFFLINE replay only')
+    parser.add_argument('--start-joints', type=Path, default=SOURCE_DIR / 'SO101/so101_offsets.json', help='Saved observation for OFFLINE replay only')
     parser.add_argument('--output', type=Path, help='New output directory (default: outputs/so101_diagnostic/UTC timestamp)')
     args = parser.parse_args(argv)
     if args.read_every < 0 or not np.isfinite(args.lift_mm) or args.lift_mm <= 0 or not np.isfinite(args.stroke_mm) or args.stroke_mm == 0:

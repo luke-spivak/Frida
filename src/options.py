@@ -9,6 +9,7 @@
 import argparse 
 import os
 import json
+from project_paths import ROOT, SOURCE_DIR, OUTPUT_DIR
 
 # Based off of Jun-Yan Zhu's Cyclegan implementation's options
 
@@ -30,9 +31,9 @@ class Options(object):
 
         parser.add_argument('--use_cache', action='store_true')
         parser.add_argument("--materials_json", type=str, 
-            default='../materials.json', help='path to json file specifying material locations.')
+            default=str(ROOT / 'materials.json'), help='path to json file specifying material locations.')
         parser.add_argument("--cache_dir", type=str,
-            default='./caches/cache_6_6_cvpr', help='Where to store cached files.')
+            default=str(SOURCE_DIR / 'caches/cache_6_6_cvpr'), help='Where to store cached files.')
         parser.add_argument('--simulate', action='store_true', help="Don't execute. Just plan without a robot. Requires already cached data.")
         parser.add_argument('--ink', action='store_true')
         parser.add_argument('--paint_from_image', action='store_true')
@@ -73,10 +74,10 @@ class Options(object):
 
         # Logging Parameters
         parser.add_argument("--tensorboard_dir", type=str,
-            default='./painting_log', help='Where to write tensorboard log to.')
-        parser.add_argument('--plan_gif_dir', type=str, default='../outputs/')
+            default=str(OUTPUT_DIR / 'painting_log'), help='Where to write tensorboard log to.')
+        parser.add_argument('--plan_gif_dir', type=str, default=str(OUTPUT_DIR))
         parser.add_argument('--log_frequency', type=int, default=5, help="Log to TB after this many optim. iters.")
-        parser.add_argument("--output_dir", type=str, default="../outputs/", help='Where to write output to.')
+        parser.add_argument("--output_dir", type=str, default=str(OUTPUT_DIR), help='Where to write output to.')
 
 
         # CoFRIDA Run-Time Parameters

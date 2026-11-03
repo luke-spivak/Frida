@@ -13,7 +13,7 @@ from paint_hello_world import draw_strokes, hello_world_strokes
 
 @pytest.fixture
 def planner(tmp_path, lerobot_calibration_path):
-    root = Path(__file__).resolve().parents[1]
+    root = Path(__file__).resolve().parents[1] / "src"
     offsets = tmp_path / "offsets.json"
     offsets.write_text(json.dumps(dict(zip(
         ["shoulder_pan", "shoulder_lift", "elbow_flex", "wrist_flex", "wrist_roll"],

@@ -21,6 +21,12 @@ does not guarantee a short stopping distance after motion; the stop guard remain
 active, and a guard failure aborts the rest of the experiment.
 """
 
+if __package__:
+    from ._bootstrap import ROOT, SOURCE_DIR
+else:
+    from _bootstrap import ROOT, SOURCE_DIR
+
+
 import argparse
 import csv
 from datetime import datetime, timezone

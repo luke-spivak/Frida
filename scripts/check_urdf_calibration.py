@@ -3,7 +3,7 @@
 Check whether so101_new_calib.urdf matches the physical SO-101 calibration.
 
 Usage:
-    python check_urdf_calibration.py
+    python ../scripts/check_urdf_calibration.py
 
 What it does:
 1. Connects to the follower arm.
@@ -13,6 +13,12 @@ What it does:
    with a ruler / tape / phone measure app relative to the base.
 5. Performs a small IK→FK round-trip test around the current pose.
 """
+
+if __package__:
+    from ._bootstrap import ROOT, SOURCE_DIR
+else:
+    from _bootstrap import ROOT, SOURCE_DIR
+
 
 import time
 import numpy as np
@@ -24,7 +30,7 @@ from lerobot.model.kinematics import RobotKinematics
 
 # ============== USER SETTINGS ==============
 PORT = "/dev/tty.usbmodem5B8E1155331"         # <-- your port
-URDF_PATH = "./SO101/so101_new_calib.urdf"
+URDF_PATH = str(SOURCE_DIR / "SO101/so101_new_calib.urdf")
 TARGET_FRAME = "gripper_frame_link"
 USE_DEGREES = True
 ROBOT_ID = "my_arm"

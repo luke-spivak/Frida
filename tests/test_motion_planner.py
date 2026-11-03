@@ -16,7 +16,7 @@ from motion_planner import SO101MotionPlanner
 
 @pytest.fixture(scope="module")
 def planner(tmp_path_factory, lerobot_calibration_path):
-    model_dir = Path(__file__).resolve().parents[1] / "SO101"
+    model_dir = Path(__file__).resolve().parents[1] / "src/SO101"
     offsets_path = tmp_path_factory.mktemp("planner") / "offsets.json"
     offsets_path.write_text(json.dumps({
         "shoulder_pan": 0.0, "shoulder_lift": 0.0, "elbow_flex": -4.6,
@@ -556,9 +556,9 @@ def test_offset_loader_fails_clearly_when_file_is_missing_or_malformed(tmp_path)
 
 def test_default_offset_file_is_independent_of_cwd_and_loaded_once(tmp_path, monkeypatch, lerobot_calibration_path):
     assert motion_planner.DEFAULT_JOINT_OFFSETS_PATH == (
-        Path(motion_planner.__file__).resolve().with_name("so101_offsets.json")
+        Path(motion_planner.__file__).resolve().parent / "SO101/so101_offsets.json"
     )
-    model_dir = Path(__file__).resolve().parents[1] / "SO101"
+    model_dir = Path(__file__).resolve().parents[1] / "src/SO101"
     path = tmp_path / "offsets.json"
     offsets = {
         "shoulder_pan": 3.0, "shoulder_lift": -1.5, "elbow_flex": -4.6,

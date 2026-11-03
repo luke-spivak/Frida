@@ -26,7 +26,9 @@ import pinocchio as pin
 from pinocchio.visualize import ViserVisualizer
 
 
-DEFAULT_JOINT_OFFSETS_PATH = Path(__file__).resolve().with_name("so101_offsets.json")
+from project_paths import MODEL_DIR, OFFSETS_PATH
+
+DEFAULT_JOINT_OFFSETS_PATH = OFFSETS_PATH
 DEFAULT_LEROBOT_CALIBRATION_PATH = (
     Path.home() / ".cache/huggingface/lerobot/calibration/robots/so_follower/my_arm.json"
 )
@@ -107,9 +109,9 @@ class SO101MotionPlanner:
 
     def __init__(
         self,
-        urdf_path="SO101/so101_brush_tip_nominal.urdf",
-        srdf_path="SO101/so101_arm.srdf",
-        joint_limits_path="SO101/so101_config.yaml",
+        urdf_path=MODEL_DIR / "so101_brush_tip_nominal.urdf",
+        srdf_path=MODEL_DIR / "so101_arm.srdf",
+        joint_limits_path=MODEL_DIR / "so101_config.yaml",
         show_viewer=False,
         joint_offsets_path=None,
         lerobot_calibration_path=None,

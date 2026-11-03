@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 import pickle
 import os
 import time
+from project_paths import OUTPUT_DIR
 
 import torch 
 from torchvision.transforms import Resize
@@ -41,7 +42,7 @@ class WebCam():
         # Save image
         # capture_dir = '/tmp/innomaker_captures'
         # if not os.path.exists(capture_dir): os.mkdir(capture_dir)
-        capture_dir = 'captures'
+        capture_dir = OUTPUT_DIR / 'captures'
         os.makedirs(capture_dir, exist_ok=True)
         file_name = os.path.join(capture_dir, str(time.time()) + '.jpg')
         success = cv2.imwrite(file_name, img)

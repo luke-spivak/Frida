@@ -2,7 +2,7 @@
 """Compare pan acceleration=254 -> 0 -> 254 on the same 50 Hz trajectory.
 
 Default: preview only, no drivers or robot connection.
-From src, when ready: python compare_so101_streaming.py --execute
+From src, when ready: python ../scripts/compare_so101_streaming.py --execute
 
 Uses the real LeRobot send_action(), but connects ONLY the bus: follower.connect()
 would configure the servos and overwrite gains. Pan P=48, D=32, I=0, both dead
@@ -38,6 +38,12 @@ stream, with acceleration=254 throughout. Changed targets keep their original
 acceleration=254 and full 50 Hz writes. Travel, gains and return motion stay fixed.
 """
 
+if __package__:
+    from ._bootstrap import ROOT, SOURCE_DIR
+else:
+    from _bootstrap import ROOT, SOURCE_DIR
+
+
 import argparse
 import csv
 from datetime import datetime, timezone
@@ -57,7 +63,6 @@ FIXED_SETTINGS = dict(P_Coefficient=48, D_Coefficient=32, I_Coefficient=0, CW_De
                       CCW_Dead_Zone=0, Startup_Byte_24=16)
 TUNING_REGISTERS = (*FIXED_SETTINGS, "Acceleration")
 DEG_PER_TICK = 360 / 4095
-ROOT = Path(__file__).resolve().parent.parent
 CALIBRATION = Path.home() / ".cache/huggingface/lerobot/calibration/robots/so_follower/my_arm.json"
 PROTECTED = (
     "P_Coefficient", "I_Coefficient", "D_Coefficient", "CW_Dead_Zone", "CCW_Dead_Zone",

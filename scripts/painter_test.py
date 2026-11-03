@@ -1,3 +1,9 @@
+
+if __package__:
+    from ._bootstrap import ROOT, SOURCE_DIR
+else:
+    from _bootstrap import ROOT, SOURCE_DIR
+
 import sys
 import datetime
 import numpy as np
@@ -12,17 +18,17 @@ from options import Options
 from my_tensorboard import TensorBoard
 from painting_optimization import load_objectives_data, optimize_painting
 
-# from tests.paint_hello_world import paint_hello_world
+# from paint_hello_world import paint_hello_world
 
 if __name__ == '__main__':
     opt = Options()
     
     opt.robot = "so101"
     opt.use_cache = True
-    opt.cache_dir = 'caches/sharpie_short_strokes'
+    opt.cache_dir = str(SOURCE_DIR / 'caches/sharpie_short_strokes')
     opt.dont_retrain_stroke_model = True
     opt.simulate = False
-    opt.materials_json = '../my_materials.json'
+    opt.materials_json = str(ROOT / 'my_materials.json')
     opt.gather_options()
     
     date_and_time = datetime.datetime.now()
@@ -37,8 +43,13 @@ if __name__ == '__main__':
         painter.to_neutral()
         # painter.rub_brush_on_rag()
         
-        painter.dip_brush_in_water()
-        painter.get_paint(1)
+        # painter.dip_brush_in_water()
+        painter.get_paint(0)
+        # painter.get_paint(1)
+        # painter.get_paint(2)
+        # painter.get_paint(8)
+        # painter.get_paint(7)
+        # painter.get_paint(6)
         # paint_hello_world(painter, air_test=False)
         # # painter.clean_paint_brush()
         # painter.to_neutral()

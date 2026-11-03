@@ -1,10 +1,16 @@
 #!/usr/bin/env python3
 """Inspect a stationary SO-101 in Viser using read-only motor snapshots.
 
-Run from src: python preview_so101_offsets.py
+Run from src: python ../scripts/preview_so101_offsets.py
 No SO101Follower/Painter connection, torque changes, calibration writes, or
 position commands. Each snapshot opens the bus, reads, and closes it again.
 """
+
+if __package__:
+    from ._bootstrap import ROOT, SOURCE_DIR
+else:
+    from _bootstrap import ROOT, SOURCE_DIR
+
 
 import argparse
 from datetime import datetime, timezone
@@ -28,8 +34,8 @@ ARM_JOINTS = (
 ALL_JOINTS = (*ARM_JOINTS, "gripper")
 DEFAULT_OFFSETS = dict.fromkeys(ARM_JOINTS, 0.0)
 DEFAULT_OFFSETS["elbow_flex"] = -4.6  # Initial guess before a saved calibration exists.
-DEFAULT_OFFSETS_PATH = Path(__file__).resolve().with_name("so101_offsets.json")
-DEFAULT_URDF = Path(__file__).resolve().parent / "SO101/so101_brush_tip_nominal.urdf"
+DEFAULT_OFFSETS_PATH = SOURCE_DIR / "SO101/so101_offsets.json"
+DEFAULT_URDF = SOURCE_DIR / "SO101/so101_brush_tip_nominal.urdf"
 DEFAULT_CALIBRATION = (
     Path.home() / ".cache/huggingface/lerobot/calibration/robots/so_follower/my_arm.json"
 )
@@ -261,11 +267,11 @@ def parse_args(argv=None):
     parser.add_argument(
         "--initial-offsets", type=Path,
         default=DEFAULT_OFFSETS_PATH if DEFAULT_OFFSETS_PATH.exists() else None,
-        help="Load saved offsets (defaults to src/so101_offsets.json when present)",
+        help="Load saved offsets (defaults to src/SO101/so101_offsets.json when present)",
     )
     parser.add_argument("--offset", action="append", default=[], metavar="JOINT=DEGREES")
     parser.add_argument("--offset-range", type=float, default=30.0, help="Slider range is +/- this many degrees")
-    parser.add_argument("--output", type=Path, default=DEFAULT_OFFSETS_PATH, help="JSON destination for the Save button (default: src/so101_offsets.json)")
+    parser.add_argument("--output", type=Path, default=DEFAULT_OFFSETS_PATH, help="JSON destination for the Save button (default: src/SO101/so101_offsets.json)")
     args = parser.parse_args(argv)
     for name in ("calibration", "urdf", "observation", "initial_offsets", "output"):
         value = getattr(args, name)

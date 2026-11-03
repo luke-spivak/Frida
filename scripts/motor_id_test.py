@@ -1,4 +1,10 @@
 
+if __package__:
+    from ._bootstrap import ROOT, SOURCE_DIR
+else:
+    from _bootstrap import ROOT, SOURCE_DIR
+
+
 import time
 from lerobot.robots.so_follower import SO101Follower, SO101FollowerConfig
 

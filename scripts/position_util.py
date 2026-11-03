@@ -1,8 +1,14 @@
 """Read brush-tip XYZ in FRIDA coordinates without changing motor registers.
 
-Run from src: python position_util.py
+Run from src: python ../scripts/position_util.py
 Torque stays in its existing state, including when exiting.
 """
+
+if __package__:
+    from ._bootstrap import ROOT, SOURCE_DIR
+else:
+    from _bootstrap import ROOT, SOURCE_DIR
+
 
 from robot import SO101
 from preview_so101_offsets import ReadOnlyFeetechBus

@@ -82,8 +82,9 @@ def capture_image(camera, channels='rgb', preview=True, debug=False):
     # target = os.path.join('/tmp', file_path.name)
     import time 
     import glob
-    cap_dir = '/tmp/gphoto2_captures/'
-    if not os.path.exists(cap_dir): os.mkdir(cap_dir)
+    from project_paths import OUTPUT_DIR
+    cap_dir = OUTPUT_DIR / 'gphoto2_captures'
+    os.makedirs(cap_dir, exist_ok=True)
     files_in_cap_dir = glob.glob(os.path.join(cap_dir, '*'))
     for f in files_in_cap_dir:
         os.remove(f)

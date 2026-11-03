@@ -30,7 +30,7 @@ EXPECTED = {
 def calibrated_planner(tmp_path_factory, lerobot_calibration_path):
     offsets = tmp_path_factory.mktemp("calibrated-planner") / "offsets.json"
     offsets.write_text(json.dumps(OFFSETS))
-    root = Path(__file__).resolve().parents[1] / "SO101"
+    root = Path(__file__).resolve().parents[1] / "src/SO101"
     return SO101MotionPlanner(
         urdf_path=root / "so101_brush_tip_nominal.urdf",
         srdf_path=root / "so101_arm.srdf",

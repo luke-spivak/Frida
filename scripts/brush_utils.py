@@ -1,3 +1,9 @@
+
+if __package__:
+    from ._bootstrap import ROOT, SOURCE_DIR
+else:
+    from _bootstrap import ROOT, SOURCE_DIR
+
 from lerobot.robots.so_follower import SO101FollowerConfig, SO101Follower
 from lerobot.model.kinematics import RobotKinematics
 from lerobot.robots.so_follower.robot_kinematic_processor import (
@@ -17,7 +23,7 @@ def get_cartesian_pose(arm: SO101Follower) -> tuple[float, float, float]:
     motor_names = list(arm.bus.motors.keys())
     
     kinematics = RobotKinematics(
-        urdf_path="./SO101/so101_new_calib.urdf",
+        urdf_path=str(SOURCE_DIR / "SO101/so101_new_calib.urdf"),
         target_frame_name="gripper_frame_link",
         joint_names=motor_names,
     )

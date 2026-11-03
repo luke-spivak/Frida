@@ -30,6 +30,7 @@ from brush_stroke import BrushStroke
 from clip_attn.clip_attn import get_attention
 
 from my_tensorboard import TensorBoard
+from project_paths import OUTPUT_DIR
 
 
 def canvas_to_global_coordinates(x,y,z, opt):
@@ -282,7 +283,7 @@ def random_init_painting(opt, background_img, n_strokes, ink=False, device='cuda
     return painting
 
 
-def create_tensorboard(log_dir='painting_log'):
+def create_tensorboard(log_dir=str(OUTPUT_DIR / 'painting_log')):
     def new_tb_entry():
         import datetime
         date_and_time = datetime.datetime.now()
