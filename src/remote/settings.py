@@ -79,6 +79,8 @@ def train_settings(settings):
 
 
 def make_options(cache_dir, materials, *, robot="so101", ink=False, planning=None):
+    if robot != "so101":
+        raise ValueError("Only the so101 robot is supported")
     source = str(ROOT / "src")
     if source not in sys.path:
         sys.path.insert(0, source)

@@ -4,8 +4,6 @@ from collections import deque
 import numpy as np
 import time
 
-from brush_stroke import euler_from_quaternion
-
 
 class MotionPlanningError(RuntimeError):
     """A Cartesian trajectory could not be planned; execution has not started."""
@@ -23,10 +21,8 @@ class Robot:
         Low-level action functionality of the robot.
         This is an abstract class, see its children for usage.
     '''
-    def __init__(self, debug, node_name="painting"):
+    def __init__(self, debug):
         self.debug_bool = debug
-        import rospy
-        rospy.init_node(node_name)
 
     def debug(self, msg):
         if self.debug_bool:
@@ -64,7 +60,7 @@ class SO101(Robot, object):
     '''
         Low-level action functionality of the SO-101 robot.
     '''
-    def __init__(self, debug, node_name="painting", show_viewer=False):
+    def __init__(self, debug, show_viewer=False):
         self.debug_bool = debug
         
         # Config for arm

@@ -62,7 +62,7 @@ def test_painter_simulation_starts_with_cached_setup_without_hardware(tmp_path, 
     forbidden.assert_not_called()
 
 
-def test_painter_import_and_simulated_camera_need_no_legacy_drivers(tmp_path):
+def test_painter_import_and_simulated_camera_need_no_retired_dependencies(tmp_path):
     # Use a fresh process so an earlier import cannot hide a dependency.
     subprocess.run([sys.executable, "-c", """
 import sys
@@ -70,7 +70,10 @@ from types import SimpleNamespace
 
 # None blocks imports while allowing LeRobot's optional find_spec probes to
 # report these packages as unavailable, just as in an environment without them.
-for name in ('gphoto2', 'pyrealsense2', 'pyrealsense2_macosx'):
+for name in ('gphoto2', 'pyrealsense2', 'pyrealsense2_macosx', 'rospy', 'xarm',
+             'accelerate', 'audioread', 'diffusers', 'kornia', 'librosa',
+             'pycocoevalcap', 'pycocotools', 'segment_anything', 'soundfile',
+             'soxr', 'timm', 'tokenizers', 'torchaudio', 'transformers', 'whisper'):
     sys.modules[name] = None
 sys.path[:0] = sys.argv[1:]
 import painter

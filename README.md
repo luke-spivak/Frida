@@ -1,222 +1,164 @@
-# Local SO101 checkout
+# FRIDA for SO101
 
-The current layout keeps FRIDA's flat source files and separates runnable tools,
-automated tests, and generated output. Existing filenames and painting behavior
-are retained.
+This checkout adapts [FRIDA](https://github.com/cmubig/Frida) for an SO101 painting
+arm and an Innomaker camera. It supports calibration, stroke-library collection,
+stroke-model training, image-based painting plans, and execution/resumption of
+saved plans. Training and planning can run locally or on Runpod.
+
+SO101 is the default and only physical robot backend. `--simulate` uses an
+in-memory canvas and simulated robot without opening hardware. Simulation still
+requires a matching saved stroke library and trained model.
+
+## Repository layout
 
 ```text
 src/             Painting, rendering, optimization, and robot code
-  camera/        Camera implementations and calibration
-  losses/        Painting objectives
+  camera/        Innomaker capture, simulation, calibration, and recording
+  losses/        Image-based CLIP objectives
   SO101/         Robot models, meshes, and so101_offsets.json
   caches/        Measured calibration, stroke libraries, and trained models
   remote/        Runpod client/worker, Dockerfile, requirements, and runpod.json
 scripts/         Calibration, diagnostics, experiments, and runpod_workflow.py
-tests/          Automated regression tests
-targets/        Input images
+tests/           Automated regression tests
+targets/         Input images and palette images
 outputs/        Captures, painting_log, recordings, and job/experiment results
 docs/           Runpod instructions and validation history
 ```
 
-Run from the repository root in the existing robot environment:
+## Environment and setup
+
+Use the existing `frida-lerobot` environment for the robot and local painting.
+The hardware path uses LeRobot's SO101 follower/Feetech support, RoboPlan,
+Pinocchio, and Viser alongside the painting and camera dependencies in
+`requirements.txt`. The dependency versions in that file and the Linux export
+in `environment.yml` are inherited pins, not a lockfile for the current SO101
+Mac environment; they do not install the complete robot stack.
+
+Run commands below from the repository root. Paths passed on the command line
+are relative to the working directory; built-in resource paths resolve from the
+source files.
+
+Supply your actual materials JSON and the cache matching the physical brush and
+calibration. The materials JSON specifies canvas geometry, station positions,
+and stroke limits; positions are in meters relative to the robot. The old
+`materials.json` and `src/caches/cache_6_6_cvpr` defaults are absent in this
+checkout, so pass `--materials_json` and `--cache_dir` explicitly.
+
+Follow the [SO101 operating and calibration instructions](src/SO101/README.md)
+for brush geometry, motor calibration, canvas height, and station setup. Measured
+calibration, stroke libraries, and trained models are stored together in the
+selected cache.
+
+## Plan and paint
+
+Create and save a plan in simulation, using an existing model:
 
 ```sh
-python src/paint.py --robot so101 --materials_json my_materials.json \
+python src/paint.py --materials_json my_materials.json \
   --cache_dir src/caches/so101_mvp --use_cache --dont_retrain_stroke_model \
   --simulate --objective l2 --objective_data targets/black_bear.png --objective_weight 1
-python scripts/paint_repeatability.py                   # preview only
+```
+
+The default plan destination is `cache_dir/stroke_plan.json`; override it with
+`--save_plan`. Simulation leaves all strokes pending.
+
+Execute or resume a saved plan with the matching physical setup:
+
+```sh
+python src/paint.py --materials_json my_materials.json \
+  --cache_dir src/caches/so101_mvp --use_cache \
+  --load_plan src/caches/so101_mvp/stroke_plan.json
+```
+
+Loading a plan validates its setup and calibration/model fingerprints before
+connecting to the robot, skips optimization and training, and resumes remaining
+strokes. The startup preview lets you inspect the canvas and palette before
+execution. `--dont_plan` loads the selected cache's default plan filename.
+
+For a new physical painting, omit `--simulate` from the planning command.
+`--num_adaptations` controls observation and replanning during that run. Without
+`--use_cache`, startup can collect calibration and a stroke library; without
+`--dont_retrain_stroke_model`, it can train the stroke model. Use those operations
+deliberately when preparing a new brush/setup.
+
+Use `--help` for the full option list. Relevant controls include `--num_strokes`,
+`--init_optim_iter`, `--optim_iter`, `--render_height`, and
+`--how_often_to_get_paint`. `--ink` supports a marker or brush pen without paint
+loading or washing.
+
+## Image objectives and palettes
+
+The retained objectives compare a rendered painting with a reference image:
+
+- `l2`: mean squared pixel error.
+- `clip_conv_loss`: similarity of intermediate CLIP visual features.
+- `clip_fc_loss`: similarity of CLIP image embeddings.
+
+Local planning can combine objectives. Supply one image and weight per objective:
+
+```sh
+python src/paint.py --simulate --use_cache --dont_retrain_stroke_model \
+  --materials_json my_materials.json --cache_dir src/caches/so101_mvp \
+  --objective clip_conv_loss l2 \
+  --objective_data targets/black_bear.png targets/black_bear.png \
+  --objective_weight 0.2 1.0
+```
+
+Use `--use_colors_from` with a palette image and `--n_colors` to constrain paint
+colors. `--foreground_mode` plans a black silhouette on white, treating
+`--num_strokes` as a maximum budget. It requires one image objective and a fixed
+black palette, such as `--use_colors_from targets/palettes/black.png --n_colors 1`.
+
+## Runpod
+
+Use the separate Python 3.12 Runpod client environment:
+
+```sh
+.venv-runpod/bin/python scripts/runpod_workflow.py --help
+```
+
+The workflow's default action provisions a paid job. See [Runpod setup and
+workflows](docs/runpod.md) for training, planning, downloading model bundles, and
+building the worker image. Rebuild and publish the worker image after changes
+to its bundled source or dependencies, and update `src/remote/runpod.json` with
+the returned tag.
+
+## Camera, recording, and diagnostics
+
+The physical camera uses the Innomaker through OpenCV's `cv2.VideoCapture(0)`.
+Connect it and allow camera access for the Python process.
+`scripts/innomaker_test.py` checks capture and the calibrated canvas view.
+Physical painting records overhead video and events by default; use
+`--no_recording` to disable this. Simulation never records video.
+
+Examples of offline previews and checks:
+
+```sh
+python scripts/paint_repeatability.py
 python scripts/preview_so101_offsets.py --help
 python -m pytest -q
 ```
 
-Select the cache that matches the physical brush and calibration. Existing caches
-and model bundles are preserved. Paths supplied on the command line are relative
-to the directory you launch from; built-in resource paths resolve from the source
-files. The upstream `materials.json` and example-cache defaults described below
-are absent in this checkout, so pass the actual materials and cache explicitly.
+The first command previews the repeatability experiment; physical execution
+requires its explicit execution option. See the SO101 instructions for motion
+diagnostics and paint loading, washing, and repeatability experiments.
 
-The separate Runpod environment runs
-`.venv-runpod/bin/python scripts/runpod_workflow.py`. That workflow provisions a
-paid job with its default action; use `--help` for argument help without running a
-job. See [Runpod setup and image rebuild instructions](docs/runpod.md). Calibration
-and robot operating instructions remain in [the SO101 README](src/SO101/README.md).
-
-The physical camera backend uses the Innomaker through OpenCV's
-`cv2.VideoCapture(0)`. Connect the camera and allow camera access for the Python
-process. `scripts/innomaker_test.py` checks capture and the calibrated canvas view.
-With `--simulate`, painting uses an in-memory canvas without opening a camera.
-
-The upstream project documentation follows; examples for previously removed
-research features and datasets may not apply to this checkout.
-
-# FRIDA <a href="https://twitter.com/FridaRobot" target="_blank"><img src="https://about.x.com/content/dam/about-twitter/x/brand-toolkit/logo-black.png.twimg.1920.png" height=32/></a>   <a href="https://www.tiktok.com/@frida_robot?lang=en" target="_blank"> <img src="https://sf-tb-sg.ibytedtos.com/obj/eden-sg/uhtyvueh7nulogpoguhm/tiktok-icon2.png" height=32/></a>
-
-FRIDA (A Framework and Robotics Initiative for Developing Arts), is a robotic painting project developed at
-The Robotics Institute, Carnegie Mellon University.
-This repository contains the code for two ICRA papers described below.
-
-Maintained by Peter Schaldenbrand
-
-
-
-
-# [CoFRIDA: Self-Supervised Fine-Tuning for Human-Robot Co-Painting](https://pschaldenbrand.github.io/cofrida/)
-<b>Best Paper on Human-Robot Interaction, ICRA 2024</b>
-
-[Peter Schaldenbrand](https://pschaldenbrand.github.io/#about.html), [Gaurav Parmar](https://gauravparmar.com/), [Jun-Yan Zhu](https://www.cs.cmu.edu/~junyanz/), [Jim McCann](http://www.cs.cmu.edu/~jmccann/), and [Jean Oh](https://www.cs.cmu.edu/~./jeanoh/)
-
-A collaborative robotic painting assistant. Code for this paper is in the [frida/cofrida directory](https://github.com/cmubig/Frida/tree/master/cofrida).
-
-https://github.com/cmubig/Frida/assets/14282484/693cd7c1-68da-4847-8f68-95364acf14ee
-
-
-# FRIDA: A Collaborative Robot Painter with a Differentiable, Real2Sim2Real Simulated Planning Environment <a href="https://colab.research.google.com/github/pschaldenbrand/Frida/blob/master/Frida.ipynb" target="_blank"><img src="https://pbs.twimg.com/profile_images/1330956917951270912/DyIZtTA8_400x400.png" height=32/></a> <a href="https://arxiv.org/abs/2210.00664" target="_blank"><img src="https://pbs.twimg.com/media/EcglfCHU4AA6-yj.png" height=32/></a>
-
-<b>Finalist for Best Paper in Deployed Systems, ICRA 2023</b>
-
-[Peter Schaldenbrand](https://pschaldenbrand.github.io/#about.html), [Jean Oh](https://www.cs.cmu.edu/~./jeanoh/), [Jim McCann](http://www.cs.cmu.edu/~jmccann/)
-
-The Robotics Institute, Carnegie Mellon University
-
-FRIDA (a Framework and Robotics
-Initiative for Developing Arts) enables humans to
-produce paintings on canvases by collaborating with a painter
-robot using simple inputs such as language descriptions or
-images. FRIDA creates a fully differentiable simulation environment for
-painting using real data, adopting the idea of real to simulation to real
-(real2sim2real) in which it can plan and dynamically respond to stochasticity in the
-execution of that plan.
-<a href="https://twitter.com/FridaRobot" target="_blank">
-    <img src="https://about.x.com/content/dam/about-twitter/x/brand-toolkit/logo-black.png.twimg.1920.png" height=16/>
-    Follow FRIDA's Paintings on X/Twitter!
-</a>
-<a href="https://colab.research.google.com/github/pschaldenbrand/Frida/blob/master/Frida.ipynb" target="_blank">
-    <img src="https://pbs.twimg.com/profile_images/1330956917951270912/DyIZtTA8_400x400.png" height=16/>
-    Try our Colab Demo
-</a>
-<a href="https://arxiv.org/abs/2210.00664" target="_blank">
-    <img src="https://pbs.twimg.com/media/EcglfCHU4AA6-yj.png" height=16/>
-    Read our paper on ArXiv
-</a>
-
-![Depiction of FRIDA's capabilities and embodiment](./sample/github_figure.png)
-
-# Installation
-
-### System Requirements
-
-We recommend running FRIDA on a machine with Python 3.8 and Ubuntu (we use 20.04). FRIDA's core functionality uses CUDA, so it is recommended to have an NVIDIA GPU with 8+Gb vRAM. Because CoFRIDA uses Stable Diffusion, it is recommended to have 12+Gb for running and 16+Gb vRam for training CoFRIDA.
-
-### Code Installation
-
-```
-git clone https://github.com/pschaldenbrand/Frida.git
-
-# Install CUDA
-
-# We use Python 3.8
-
-# Install python packages with PIP
-cd Frida
-pip3 install --r requirements.txt
-
-# (OR) Install python packages with Conda
-cd Frida
-conda env create -n frida --file environment.yml
-# Beware, you may need to re-install torch/torchvision depending on your cuda version.
-# The following lines worked on our CUDA 12.2 system
-pip uninstall torch torchvision
-pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
-
-# (optional) For training CoFRIDA, you'll need additional installation steps
-cd Frida/src
-pip3 install git+https://github.com/facebookresearch/segment-anything.git
-wget https://dl.fbaipublicfiles.com/segment_anything/sam_vit_b_01ec64.pth
-git clone https://github.com/jmhessel/clipscore.git
-```
-
-### Run with a robot
-
-We currently support UFactory XArm and Franka Emika robots. To use a Rethink Sawyer robot, please install the "ICRA 2023" tag version of the github repository.
-
-# Physical Setup `--materials_json`
-
-Below you can see a depiction of FRIDA's materials. The locations of these items are specified in meters from the robot base. They are specified in `--materials_json` command line argument. See `Frida/materials.json` for an example.
-
-![Depiction of FRIDA's setup](./sample/materials_json_diagram.jpg)
-
-# Equipment
-
-Here is a list of the equipment that we use and some links to purchase. Each item may be able to be swapped out with small changes to the code.
-
-- [Palettes for paint](https://www.amazon.com/gp/product/B07DKWTXWT/ref=ppx_yo_dt_b_search_asin_title?ie=UTF8&psc=1)
-- [8x10 inch canvas boards](https://www.amazon.com/gp/product/B07RNK7DJ7/ref=ppx_yo_dt_b_search_asin_title?ie=UTF8&psc=1)
-- [11x14 inch canvas boards](https://www.amazon.com/gp/product/B087F4F5DK/ref=ppx_yo_dt_b_search_asin_title?ie=UTF8&psc=1)
-- [Canon EOS Rebel T7i (With 18-55mm Lens and With Web Streaming Kit)](https://www.bhphotovideo.com/c/product/1714575-REG/canon_canon_eos_rebel_t7.html)
-- [Camera Desk Mount Stand](https://www.amazon.com/gp/product/B08LV7GZVB/ref=ppx_yo_dt_b_search_asin_title?ie=UTF8&th=1)
-
-# Monitoring Painting Progress
-
-We use tensorboard to monitor the progress of the painting.
-
-```
-# In another terminal, run this to view progress
-tensorboard --logdir Frida/outputs/painting_log
-
-# Open browser and navigate to http://localhost:6006/
-```
-
-# Arguments
-
-```
-python3 paint.py
-    [--simulate] Run in only simulation
-    [--robot] Which robot to use [franka|xarm]
-    [--xarm_ip] If using xarm, specify its IP address
-    [--materials_json path] Where JSON file specifying location of painting materials is
-    [--use_cache] Use cached calibration files. Necessary if --simulation
-    [--cache_dir path] Where the cached calibration files are stored if using them
-    [--ink] If using a marker or brush pen, use this so the robot knows it doesn't need paint
-    [--render_height int] Height of the sim. canvases. Decrease for CUDA memory errors. Default 256
-    [--num_papers int] Number of full sheets of paper to fill with training brush strokes (30 per paper)
-    [--n_colors int] Number of discrete paint colors to use
-    [--use_colors_from path] If specified, use K-means to get paint colors from this image. Default None
-    [--num_strokes int] The desired number of strokes in the painting
-    [--objective [one or many clip_conv_loss|l2|clip_fc_loss]]
-    [--objective_data] See below
-    [--objective_weight] See below
-    [--num_augs int] Number of augmentations when using CLIP
-    [--lr_multiplier float] How much to scale the learning rates for the brush stroke parameter optimization algorithm
-    [--num_adaptations int] Number of times to pause robot execution to take a photo and replan
-    [--init_optim_iter int] Optimization iterations for initial plan
-    [--optim_iter int] Optimization iterations for each time FRIDA replans
-```
-
-# Objectives
-
-FRIDA supports three objectives, used individually or in a weighted combination to compare the rendered painting with a target image:
-
-- `l2` - Compare the painting and target image using mean squared pixel error
-- `clip_conv_loss` - Compare the CLIP visual features of the painting and target image
-- `clip_fc_loss` - Compare the CLIP embeddings of the painting and target image
-
-Supply one image and weight for each objective. For example, this combines CLIP visual similarity with pixel error for the same reference image during local planning:
+View optimization logs with TensorBoard, if installed:
 
 ```sh
-cd Frida/src
-python3 paint.py --robot so101 --simulate --use_cache --dont_retrain_stroke_model \
-   --materials_json ../my_materials.json --cache_dir caches/so101_mvp \
-   --objective clip_conv_loss l2 \
-   --objective_data ../targets/black_bear.png ../targets/black_bear.png \
-   --objective_weight 0.2 1.0
+tensorboard --logdir outputs/painting_log
 ```
 
-## Acknowledgements
+## Attribution
 
-Thank you to:
-- Sunyu Wang for the brilliant, spring-loaded Sharpie holding end-effector
-- [Jia Chen Xu](https://github.com/jxu12345) for writing FRIDA's perception code
-- Heera Sekhr and Jesse Ding for their help in the early stages of designing FRIDA's planning algorithms
-- [Vihaan Misra](https://github.com/convexalpha) for writing a sketch and audio loss functions.
-- Tanmay Shankar for his help with initial installation and fixing the Sawyer robot
-- Kevin Zhang for his incredible help with installation with Franka robot
+FRIDA (a Framework and Robotics Initiative for Developing Arts) was developed at
+The Robotics Institute, Carnegie Mellon University, and maintained upstream by
+Peter Schaldenbrand. See [FRIDA: A Collaborative Robot Painter with a
+Differentiable, Real2Sim2Real Simulated Planning Environment](https://arxiv.org/abs/2210.00664)
+for the original research and [the upstream repository](https://github.com/cmubig/Frida)
+for its broader research history. This checkout supports the workflows described
+above.
+
+Upstream contributors acknowledged by the project include Sunyu Wang, Jia Chen
+Xu, Heera Sekhr, Jesse Ding, Vihaan Misra, Tanmay Shankar, and Kevin Zhang.
+See [LICENSE](LICENSE) for licensing terms.

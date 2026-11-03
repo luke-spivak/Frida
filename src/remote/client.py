@@ -180,8 +180,10 @@ def _run(kind, *, target=None, model=None, cache_dir=None, materials_json=None,
         cache_dir, materials_json, robot, ink = model.cache_dir, model.materials_json, model.robot, model.ink
     cache_dir = Path(cache_dir or ROOT / "src/caches/so101_mvp").resolve()
     materials_json = Path(materials_json or ROOT / "my_materials.json").resolve()
-    if not isinstance(robot, str) or not robot or type(ink) is not bool:
-        raise ValueError("robot must be a name and ink must be a bool")
+    if robot != "so101":
+        raise ValueError("Only the so101 robot is supported")
+    if type(ink) is not bool:
+        raise ValueError("ink must be a bool")
     if use_colors_from is not None:
         if planning is None or planning["palette"] is not None:
             raise ValueError("use_colors_from requires planning and cannot be combined with palette")

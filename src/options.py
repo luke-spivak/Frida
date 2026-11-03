@@ -26,8 +26,8 @@ class Options(object):
 
     def initialize(self, parser):
         # Main parameters
-        parser.add_argument("--robot", type=str, default='franka', help='Which robot to use "franka" "xarm" or "sawyer"')
-        parser.add_argument("--xarm_ip", type=str, default='192.168.1.176', help='IP address of XArm.')
+        parser.add_argument("--robot", choices=('so101',), default='so101',
+                            help='Robot setup; use --simulate to plan without hardware.')
 
         parser.add_argument('--use_cache', action='store_true')
         parser.add_argument("--materials_json", type=str, 
@@ -119,6 +119,8 @@ class Options(object):
             materials = json.load(f)
         
         self.opt = {**self.opt, **materials}
+        if self.robot != 'so101':
+            self.parser.error('Only the so101 robot is supported')
 
         thresh = 0.001 # 0.1cm tolerance on overshooting the canvas
         self.Y_CANVAS_MAX = self.CANVAS_POSITION[1] + self.CANVAS_HEIGHT_M - thresh

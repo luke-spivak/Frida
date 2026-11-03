@@ -15,16 +15,7 @@ tensorboardX==2.1
 torch 
 torchvision
 torchgeometry
-kornia
 colour-science
 ftfy
 regex
 git+https://github.com/openai/CLIP.git
-librosa
-timm
-transformers
-diffusers
-accelerate
-transformers
-whisper
-xarm

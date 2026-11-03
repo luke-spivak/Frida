@@ -17,11 +17,12 @@ from scipy.ndimage import median_filter
 import pickle
 import math
 import gzip
+import time
 from brush_stroke import BrushStroke
 from canvas_z import HEIGHT_FILENAME, read_height_calibration
 
 from paint_utils3 import canvas_to_global_coordinates
-from robot import *
+from robot import SO101, SimulatedRobot
 from camera.simulated import SimulatedWebCam
 from camera.innomaker import WebCam
 
@@ -53,6 +54,8 @@ class Painter():
             opt (Options) : from options.py; class with info about painting environment and globals
         kwargs:
         '''
+        if opt.robot != 'so101':
+            raise ValueError('Only the so101 robot is supported')
         self.opt = opt # Options object
         self._at_canvas = False
         use_cache = opt.use_cache
@@ -68,19 +71,10 @@ class Painter():
             if self.canvas_z_calibration is not None:
                 print('Loaded 3 x 3 canvas Z calibration.')
 
-        self.robot = None
         if opt.simulate:
             self.robot = SimulatedRobot(debug=True)
-        elif opt.robot == "franka":
-            self.robot = Franka(debug=True)
-        elif opt.robot == "xarm":
-            self.robot = XArm(opt.xarm_ip, debug=True)
-        elif opt.robot =="so101":
+        else:
             self.robot = SO101(debug=True)
-        elif opt.robot == None:
-            self.robot = SimulatedRobot(debug=True)
-        if opt.simulate:
-            self.robot = SimulatedRobot(debug=True)
 
         self.writer = opt.writer # TODO simplify
 
@@ -201,22 +195,14 @@ class Painter():
 
 
     def to_neutral(self, speed=0.4):
-        # Initial spot
-        if not self.opt.simulate:
-            y = 0.4 
-            if self.opt.robot == 'so101':
-                neutral = SO101_NEUTRAL_POSITION
-                # Fresh calibration has no known canvas reference yet.
-                if hasattr(self, 'Z_CANVAS'):
-                    return self.travel_to(*neutral)
-                self._at_canvas = False
-                self.robot.go_to_cartesian_pose([neutral])
-                return            
-            elif self.opt.robot == 'franka':
-                y = 0.4
-            elif self.opt.robot == 'xarm':
-                y = 0.1
-            self.move_to_trajectories([[0,y,self.opt.INIT_TABLE_Z]], [None])
+        if self.opt.simulate:
+            return
+        neutral = SO101_NEUTRAL_POSITION
+        # Fresh calibration has no known canvas reference yet.
+        if hasattr(self, 'Z_CANVAS'):
+            return self.travel_to(*neutral)
+        self._at_canvas = False
+        self.robot.go_to_cartesian_pose([neutral])
 
     def move_to_trajectories(self, positions, orientations):
         for i in range(len(orientations)):
@@ -255,8 +241,6 @@ class Painter():
         self._at_canvas = False
         if self.opt.simulate:
             return
-        if self.opt.robot != 'so101':
-            return self.move_to(x, y, z)
         return self.robot.go_to_cartesian_pose([[x, y, z]], travel_z=self.Z_CANVAS + 0.10)
 
     def canvas_z(self, x, y, z):
@@ -275,8 +259,6 @@ class Painter():
         if self.opt.simulate:
             return
         target = [x, y, self.canvas_z(x, y, self.Z_CANVAS + 0.03)]
-        if self.opt.robot != 'so101':
-            return self.move_to(*target, speed=0.4)
         if not getattr(self, '_at_canvas', False):
             result = self.travel_to(*target)
             self._at_canvas = True

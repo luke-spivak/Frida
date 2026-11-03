@@ -315,19 +315,14 @@ def test_stroke_approach_waypoint_uses_current_canvas(neutral_painter):
                                [[0.02, 0.39, 0.03], [0.05, 0.40, 0.02]])
 
 
-@pytest.mark.parametrize("simulate,robot_type", [(True, "so101"), (False, "franka")])
-def test_stroke_approach_simulation_and_other_robots(neutral_painter, simulate, robot_type):
+def test_stroke_approach_simulation_does_not_move(neutral_painter):
     painter, _ = neutral_painter
-    painter.opt.simulate = simulate
-    painter.opt.robot = robot_type
+    painter.opt.simulate = True
     painter.move_to = Mock()
     painter.robot.go_to_cartesian_pose = Mock()
     painter.approach_stroke(0.04, 0.39)
     painter.robot.go_to_cartesian_pose.assert_not_called()
-    if simulate:
-        painter.move_to.assert_not_called()
-    else:
-        painter.move_to.assert_called_once_with(0.04, 0.39, 0.0315, speed=0.4)
+    painter.move_to.assert_not_called()
 
 
 @pytest.mark.parametrize("approach_fails", [False, True])

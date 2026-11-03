@@ -224,8 +224,6 @@ class BrushStroke(nn.Module):
         # # x[x >= 0.1] = 1
         #x = 1/(1+torch.exp(-1.*((x*2-1)+0.5) / 0.05))
         x = special_sigmoid(x)
-        # import kornia as K
-        # x = K.filters.median_blur(x, (3,3))
         
 
         # show_img(x)
@@ -368,7 +366,7 @@ class BrushStroke(nn.Module):
                 q = get_quaternion_from_euler(roll,pitch,yaw)
 
                 ######
-                # TODO: fix the tilt of the brush for the Franka robot
+                # SO101 motion planning determines the brush orientation.
                 q = None
                 ####
 

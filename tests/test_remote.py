@@ -325,6 +325,31 @@ def test_invalid_jobs_fail_locally(settings):
         plan_settings(settings)
 
 
+@pytest.mark.parametrize("robot", ["franka", "xarm", "sawyer", "unknown", None])
+@pytest.mark.parametrize("helper,args", [
+    (client.plan_remotely, ("target.png",)),
+    (client.train_and_plan_remotely, ("target.png",)),
+    (client.train_brush_remotely, ()),
+])
+def test_unsupported_robots_rejected_before_staging_or_cloud_access(helper, args, robot,
+                                                                  monkeypatch, tmp_path):
+    forbidden = Mock(side_effect=AssertionError("Unsupported robot must fail before staging"))
+    for name in ("copy_cache", "require_capacity", "VolumeStore", "make_task"):
+        monkeypatch.setattr(client, name, forbidden)
+    output = tmp_path / "results"
+    with pytest.raises(ValueError, match="Only the so101 robot is supported"):
+        helper(*args, robot=robot, output_dir=output,
+               config=RunpodConfig("image:v", "volume", "EUR-IS-1"))
+    forbidden.assert_not_called()
+    assert not output.exists()
+
+
+@pytest.mark.parametrize("robot", ["franka", "xarm", "sawyer", "unknown", None])
+def test_worker_options_reject_unsupported_robots_before_loading_files(robot):
+    with pytest.raises(ValueError, match="Only the so101 robot is supported"):
+        make_options("missing-cache", "missing-materials.json", robot=robot)
+
+
 @pytest.mark.parametrize("plan", [client.plan_remotely, client.train_and_plan_remotely])
 def test_text_planning_rejected_before_staging_or_cloud_access(plan, monkeypatch, tmp_path):
     forbidden = Mock(side_effect=AssertionError("Text planning must fail before staging or cloud access"))
