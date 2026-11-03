@@ -54,7 +54,14 @@ class Options(object):
         parser.add_argument('--brush_length', type=float, default=None)
 
         # Planning Parameters
-        parser.add_argument('--dont_plan', action='store_true', help='Use saved plan from last run')
+        parser.add_argument('--dont_plan', action='store_true',
+            help='Resume cache_dir/stroke_plan.json without optimization (requires --use_cache)')
+        parser.add_argument('--save_plan', type=str, default=None,
+            help='Checkpoint path; defaults to cache_dir/stroke_plan.json, or the loaded plan path')
+        parser.add_argument('--load_plan', type=str, default=None,
+            help='Resume remaining strokes from this JSON plan without optimization (requires --use_cache)')
+        parser.add_argument('--skip_failed_strokes', action='store_true',
+            help='Skip an SO101 stroke when Cartesian motion planning fails')
         parser.add_argument('--num_strokes', type=int, default=400)
         parser.add_argument('--num_adaptations', type=int, default=1)
         parser.add_argument('--fill_weight', type=float, default=0.0, help="Encourage strokes to fill canvas.")
