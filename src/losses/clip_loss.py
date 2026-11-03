@@ -29,17 +29,6 @@ def get_clip_model(name='ViT-B/32'):
     return model, preprocess
 
 
-def __getattr__(name):
-    # Preserve imports used by the existing text objectives without loading
-    # two extra models whenever only the convolutional objective is selected.
-    if name in ('clip_model', 'preprocess'):
-        return get_clip_model()[name == 'preprocess']
-    if name in ('clip_model_16', 'preprocess_16'):
-        return get_clip_model('ViT-B/16')[name == 'preprocess_16']
-    raise AttributeError(name)
-
-
-
 class CLIPVisualEncoder(nn.Module):
     def __init__(self, clip_model):
         super().__init__()
@@ -299,30 +288,7 @@ augment_trans_text = transforms.Compose([
     transforms.Normalize((0.48145466, 0.4578275, 0.40821073), (0.26862954, 0.26130258, 0.27577711))
 ])
 
-def clip_text_loss(p, text_features, num_augs, text_features_16=None):
-    clip_model, _ = get_clip_model()
-    loss = 0
-    img_augs = []
-    with warnings.catch_warnings():
-        # RandomPerspective has a really annoying warning
-        warnings.simplefilter("ignore")
-        for n in range(num_augs):
-            img_augs.append(augment_trans_text(p[:,:3]))
-
-    im_batch = torch.cat(img_augs)
-    # from plan_all_strokes import show_img 
-    # show_img(im_batch[0])
-    image_features = clip_model.encode_image(im_batch)
-    if text_features_16 is not None:
-        image_features_16 = get_clip_model('ViT-B/16')[0].encode_image(im_batch)
-    for n in range(num_augs):
-        loss -= torch.cosine_similarity(text_features, image_features[n:n+1], dim=1)
-        if text_features_16 is not None:
-            loss -= torch.cosine_similarity(text_features_16, image_features_16[n:n+1], dim=1)
-
-    return loss / num_augs if text_features_16 is not None else loss / (2*num_augs)
-
-def clip_fc_loss(p, other_img, num_augs, text_features_16=None):
+def clip_fc_loss(p, other_img, num_augs):
     clip_model, _ = get_clip_model()
     loss = 0
     p_augs, other_img_augs = [], []
@@ -341,4 +307,4 @@ def clip_fc_loss(p, other_img, num_augs, text_features_16=None):
     for n in range(num_augs):
         loss -= torch.cosine_similarity(other_features[n:n+1], p_features[n:n+1], dim=1)
 
-    return loss / num_augs if text_features_16 is not None else loss / (2*num_augs)
+    return loss / (2*num_augs)

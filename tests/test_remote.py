@@ -317,12 +317,25 @@ def test_live_catalog_cuda_version_reaches_deployment(monkeypatch):
         register_cuda_versions(["11.8"])
 
 
-@pytest.mark.parametrize("settings", [{"objective": "audio"}, {"num_strokes": 123},
+@pytest.mark.parametrize("settings", [{"objective": "audio"}, {"objective": "text"}, {"num_strokes": 123},
                                      {"iterations": 0}, {"lr_multiplier": float("nan")},
                                      {"num_strokes": 4, "n_colors": 5}])
 def test_invalid_jobs_fail_locally(settings):
     with pytest.raises(ValueError):
         plan_settings(settings)
+
+
+@pytest.mark.parametrize("plan", [client.plan_remotely, client.train_and_plan_remotely])
+def test_text_planning_rejected_before_staging_or_cloud_access(plan, monkeypatch, tmp_path):
+    forbidden = Mock(side_effect=AssertionError("Text planning must fail before staging or cloud access"))
+    for name in ("copy_cache", "require_capacity", "VolumeStore", "make_task"):
+        monkeypatch.setattr(client, name, forbidden)
+    output = tmp_path / "results"
+    with pytest.raises(ValueError, match="supports clip_conv_loss, clip_fc_loss, and l2"):
+        plan("a black bear", objective="text", output_dir=output,
+             config=RunpodConfig("image:v", "volume", "EUR-IS-1"))
+    forbidden.assert_not_called()
+    assert not output.exists()
 
 
 def test_fixed_palette_normalizes_colors_and_infers_count():

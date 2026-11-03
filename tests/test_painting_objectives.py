@@ -13,7 +13,7 @@ from painting_optimization import load_objectives_data, parse_objective
 
 
 @pytest.mark.parametrize('objective', [
-    'style', 'dino', 'audio', 'speech', 'emotion', 'face', 'stable_diffusion', 'unknown',
+    'style', 'dino', 'audio', 'speech', 'emotion', 'face', 'stable_diffusion', 'text', 'unknown',
 ])
 def test_unsupported_objectives_rejected_before_loading_data(objective):
     parser = Options().initialize(argparse.ArgumentParser())

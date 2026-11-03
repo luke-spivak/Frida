@@ -45,10 +45,7 @@ def log_progress(painting, opt, log_freq=5, force_log=False, title='plan'):
 def parse_objective(objective_type, objective_data, p, weight=1.0, num_augs=30):
     ''' p is the rendered painting '''
     global local_it
-    if objective_type == 'text':
-        from losses.clip_loss import clip_text_loss
-        return clip_text_loss(p, objective_data, num_augs)[0] * weight
-    elif objective_type == 'clip_conv_loss':
+    if objective_type == 'clip_conv_loss':
         from losses.clip_loss import clip_conv_loss
         return clip_conv_loss(p, objective_data) * weight
     elif objective_type == 'l2':
@@ -65,13 +62,7 @@ def load_objectives_data(opt):
     if not opt.objective:
         print('\n\nNo objectives. Are you sure?\n\n')
     for i in range(len(opt.objective) if opt.objective else 0):
-        if opt.objective[i] == 'text':
-            import clip
-            from losses.clip_loss import clip_model
-            with torch.no_grad():
-                text_features = clip_model.encode_text(clip.tokenize(opt.objective_data[i]).to(device))
-                objective_data.append(text_features)
-        elif opt.objective[i] in ('l2', 'clip_conv_loss', 'clip_fc_loss'):
+        if opt.objective[i] in ('l2', 'clip_conv_loss', 'clip_fc_loss'):
             img = load_img(opt.objective_data[i],h=opt.h_render, w=opt.w_render).to(device)/255.
             objective_data.append(img)
             opt.writer.add_image('target/input{}'.format(i), format_img(img), 0)

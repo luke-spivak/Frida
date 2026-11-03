@@ -44,8 +44,8 @@ def plan_settings(settings):
             result["n_colors"] = len(normalized)
         if result["n_colors"] != len(normalized):
             raise ValueError("n_colors must match the supplied palette length")
-    if result["objective"] not in ("clip_conv_loss", "clip_fc_loss", "l2", "text"):
-        raise ValueError("Remote worker supports clip_conv_loss, clip_fc_loss, l2, and text")
+    if result["objective"] not in ("clip_conv_loss", "clip_fc_loss", "l2"):
+        raise ValueError("Remote worker supports clip_conv_loss, clip_fc_loss, and l2")
     for name in ("num_strokes", "iterations", "render_height", "n_colors", "num_augs", "log_frequency"):
         if type(result[name]) is not int or result[name] < 1:
             raise ValueError(f"{name} must be a positive integer")
@@ -59,8 +59,6 @@ def plan_settings(settings):
         raise ValueError("n_colors cannot exceed num_strokes")
     if type(result["foreground_mode"]) is not bool:
         raise ValueError("foreground_mode must be a boolean")
-    if result["foreground_mode"] and result["objective"] == "text":
-        raise ValueError("foreground_mode requires an image objective")
     for name in ("lr_multiplier", "fill_weight", "foreground_reconstruction_weight",
                  "foreground_background_weight"):
         if not isinstance(result[name], (int, float)) or not math.isfinite(result[name]) or result[name] < 0:

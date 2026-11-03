@@ -210,16 +210,11 @@ def _run(kind, *, target=None, model=None, cache_dir=None, materials_json=None,
                 palette_name = "palette_source" + use_colors_from.suffix.lower()
                 shutil.copyfile(use_colors_from, job_input / palette_name)
                 request["use_colors_from"] = palette_name
-            if planning["objective"] == "text":
-                if not isinstance(target, str) or not target.strip():
-                    raise ValueError("Text planning requires target='your prompt'")
-                request["target"] = target
-            else:
-                if target is None or not Path(target).is_file():
-                    raise ValueError(f"Target image does not exist: {target}")
-                target_name = "target" + Path(target).suffix.lower()
-                shutil.copyfile(target, job_input / target_name)
-                request["target"] = target_name
+            if target is None or not Path(target).is_file():
+                raise ValueError(f"Target image does not exist: {target}")
+            target_name = "target" + Path(target).suffix.lower()
+            shutil.copyfile(target, job_input / target_name)
+            request["target"] = target_name
         write_json(job_input / "request.json", request)
         config.validate()
         source_version = code_version()

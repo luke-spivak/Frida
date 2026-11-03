@@ -78,7 +78,7 @@ class Options(object):
 
         # Optimization Parameters
         parser.add_argument('--objective', nargs='*', type=str,
-                            choices=('text', 'clip_conv_loss', 'l2', 'clip_fc_loss'),
+                            choices=('clip_conv_loss', 'l2', 'clip_fc_loss'),
                             help='Painting objectives; multiple objectives are combined using their weights.')
         parser.add_argument('--objective_data', nargs='*', type=str)
         parser.add_argument('--objective_weight', nargs='*', type=float, default=1.0)

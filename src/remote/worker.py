@@ -184,7 +184,7 @@ def _plan(opt, planning, target, inputs, output, device, *, use_colors_from=None
                 temporary = destination.with_name(destination.name + "." + output.parent.name + ".tmp")
                 shutil.copyfile(weight, temporary)
                 temporary.replace(destination)
-    opt.objective_data = [target if planning["objective"] == "text" else str(safe_path(inputs, target))]
+    opt.objective_data = [str(safe_path(inputs, target))]
     optimization.local_it = 0
     optimization.plans = []
     optimization.load_objectives_data(opt)

@@ -182,7 +182,7 @@ python3 paint.py
     [--n_colors int] Number of discrete paint colors to use
     [--use_colors_from path] If specified, use K-means to get paint colors from this image. Default None
     [--num_strokes int] The desired number of strokes in the painting
-    [--objective [one or many text|clip_conv_loss|l2|clip_fc_loss]]
+    [--objective [one or many clip_conv_loss|l2|clip_fc_loss]]
     [--objective_data] See below
     [--objective_weight] See below
     [--num_augs int] Number of augmentations when using CLIP
@@ -194,21 +194,20 @@ python3 paint.py
 
 # Objectives
 
-FRIDA supports four objectives, used individually or in a weighted combination to compare the rendered painting with a target image or text:
+FRIDA supports three objectives, used individually or in a weighted combination to compare the rendered painting with a target image:
 
 - `l2` - Compare the painting and target image using mean squared pixel error
 - `clip_conv_loss` - Compare the CLIP visual features of the painting and target image
 - `clip_fc_loss` - Compare the CLIP embeddings of the painting and target image
-- `text` - Compare the CLIP embeddings of the painting and the input text description
 
-Supply one input and weight for each objective. For example, this combines an image reference with a text description during local planning:
+Supply one image and weight for each objective. For example, this combines CLIP visual similarity with pixel error for the same reference image during local planning:
 
 ```sh
 cd Frida/src
 python3 paint.py --robot so101 --simulate --use_cache --dont_retrain_stroke_model \
    --materials_json ../my_materials.json --cache_dir caches/so101_mvp \
-   --objective clip_conv_loss text \
-   --objective_data ../targets/black_bear.png "a black bear" \
+   --objective clip_conv_loss l2 \
+   --objective_data ../targets/black_bear.png ../targets/black_bear.png \
    --objective_weight 0.2 1.0
 ```
 
