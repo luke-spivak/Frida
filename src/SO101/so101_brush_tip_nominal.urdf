@@ -392,7 +392,7 @@
       <mechanicalReduction>1</mechanicalReduction>
     </actuator>
   </transmission>
-  <!--NOMINAL TOOL GEOMETRY: visually review seating and tip side before hardware use. 77 mm from holder exit face, uncompressed.-->
+  <!--NOMINAL TOOL GEOMETRY: visually review seating and tip side before hardware use. 67 mm from holder exit face, uncompressed.-->
   <link name="brush_holder_link">
     <visual>
       <geometry>
@@ -412,12 +412,12 @@
   <joint name="brush_tip_joint" type="fixed">
     <parent link="gripper_frame_link" />
     <child link="brush_tip" />
-    <origin xyz="-0.00789999994 0.08600016997 2.268675429e-05" rpy="0 0 0" />
+    <origin xyz="-0.00789999993879 0.0760001699716 2.27132868549e-05" rpy="0 0 0" />
   </joint>
   <link name="brush_exposed_visual">
     <visual>
       <geometry>
-        <cylinder radius=".0025" length=".077" />
+        <cylinder radius=".0025" length=".067" />
       </geometry>
       <material name="brush_tan">
         <color rgba=".7 .47 .22 1" />
@@ -427,7 +427,7 @@
   <joint name="brush_exposed_visual_joint" type="fixed">
     <parent link="brush_holder_link" />
     <child link="brush_exposed_visual" />
-    <origin xyz="0.022 0 -0.0385" rpy="0 0 0" />
+    <origin xyz="0.022 0 -0.0335" rpy="0 0 0" />
   </joint>
 
   <!-- Printed camera-mount base; STL units are millimeters.

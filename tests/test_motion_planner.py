@@ -281,7 +281,7 @@ def test_real_ik_and_connection_from_tilted_start(planner, monkeypatch):
 
 @pytest.mark.parametrize("tilt", [0.0, 10.0, 11.0, 90.0, 180.0])
 def test_tilt_measures_shaft_direction_and_ignores_spin(planner, monkeypatch, tilt):
-    assert planner.brush_axis_length == pytest.approx(0.0385)
+    assert planner.brush_axis_length == pytest.approx(0.0335)
     upright, _ = Rotation.align_vectors([planner.brush_direction], [planner.brush_axis_local])
     pose = np.eye(4)
     # Rotate about the shaft, then tilt it around a horizontal axis.

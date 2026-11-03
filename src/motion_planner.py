@@ -115,7 +115,7 @@ class SO101MotionPlanner:
         show_viewer=False,
         joint_offsets_path=None,
         lerobot_calibration_path=None,
-        speed_scale=4.0,
+        speed_scale=6.0,
     ):
         if not np.isfinite(speed_scale) or speed_scale <= 0:
             raise ValueError("speed_scale must be positive and finite")
@@ -189,10 +189,10 @@ class SO101MotionPlanner:
         self.ik_max_attempts = 10
         self.ik_max_iters = 300
         self.ik_attempt_timeout = 15.0
-        # Resolve the geometry more accurately than the checked path tolerance.
-        self.ik_position_tolerance = 0.00005
+        # Model-space tolerances for MVP painting; not physical tracking accuracy.
+        self.ik_position_tolerance = 0.002
         self.cartesian_step = 0.002
-        self.cartesian_path_tolerance = 0.00025
+        self.cartesian_path_tolerance = 0.002
 
         self.arm_indices = np.asarray(
             self.scene.getJointPositionIndices(self.joint_names),
@@ -537,7 +537,7 @@ class SO101MotionPlanner:
                               degrees, within 2 degrees of the measured pose.
 
         Returns a RoboPlan JointTrajectory. Does not move the arm.
-        Follow the Cartesian polyline (0.25 mm model tolerance), stopping with
+        Follow the Cartesian polyline (2 mm model tolerance), stopping with
         zero velocity/acceleration at direction changes. Collinear points flow
         through without stops. Unreachable/unsafe straight paths are rejected.
         Goals must be within 10 degrees of bristles-down vertical. A tilted

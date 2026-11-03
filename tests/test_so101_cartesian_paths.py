@@ -3,6 +3,7 @@
 import json
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import Mock
 
 import numpy as np
 import pytest
@@ -43,6 +44,47 @@ def servo_degrees(p, q):
             - p.joint_offsets_deg.get(n, 0.) for n in p.scene.getJointNames()}
 
 
+@pytest.mark.parametrize("error", [.0015, .0025], ids=["within_2mm", "beyond_2mm"])
+def test_ik_position_tolerance_boundary(planner, monkeypatch, error):
+    p = planner
+    assert p.ik_position_tolerance == .002
+    assert p.brush_tilt_tolerance_deg == 10.0
+    q = saved_start(p)
+    assert p.brush_tilt_deg(q) <= 10.0
+    target = p.scene.forwardKinematics(q, p.tip_frame, p.base_frame)[:3, 3] + [error, 0, 0]
+    solver = SimpleNamespace(num_variables=p.ik.num_variables, solveIk=Mock())
+    monkeypatch.setattr(p, "ik", solver)
+    if error < .002:
+        np.testing.assert_array_equal(p._solve_xyz_attempt(target, q, []), q)
+        solver.solveIk.assert_not_called()
+    else:
+        # The supplied pose cannot be accepted; a stalled solver must fail.
+        with pytest.raises(RuntimeError, match="IK stalled"):
+            p._solve_xyz_attempt(target, q, [])
+        solver.solveIk.assert_called_once()
+
+
+@pytest.mark.parametrize("error", [.0015, .0025], ids=["within_2mm", "beyond_2mm"])
+@pytest.mark.parametrize("kind", ["line", "endpoint"])
+def test_cartesian_tolerance_boundary(planner, monkeypatch, error, kind):
+    assert planner.cartesian_path_tolerance == .002
+
+    def fk(q, *args):
+        pose = np.eye(4)
+        pose[:3, 3] = [q[0], error if kind == "line" else 0, 0]
+        return pose
+
+    monkeypatch.setattr(planner, "scene", SimpleNamespace(forwardKinematics=fk))
+    rows = np.zeros((2, len(planner.arm_indices)))
+    rows[-1, 0] = .01 - (error if kind == "endpoint" else 0)
+    args = (SimpleNamespace(positions=rows), np.zeros(6), np.zeros(3), np.array([.01, 0, 0]))
+    if error < .002:
+        planner._validate_cartesian_segment(*args)
+    else:
+        with pytest.raises(RuntimeError, match="Cartesian segment"):
+            planner._validate_cartesian_segment(*args)
+
+
 def test_collinear_points_merge_but_corners_and_reversals_remain():
     points = np.array([[0, 0, 0], [0, 0, 0], [0, 0, 1], [0, 0, 2],
                        [0, 1, 2], [0, 2, 2], [0, 1, 2]])
@@ -57,11 +99,11 @@ def test_cartesian_validator_rejects_unsafe_geometry(planner, monkeypatch, bad):
         pose = np.eye(4)
         pose[:3, 3] = [q[0], 0, 0]
         if bad == "between_samples":
-            pose[1, 3] = .001 * np.sin(np.pi * q[0] / .01)
+            pose[1, 3] = .003 * np.sin(np.pi * q[0] / .01)
         return pose
     monkeypatch.setattr(planner, "scene", SimpleNamespace(forwardKinematics=fk))
-    samples = {"overshoot": [0, .012, .01], "backtrack": [0, .008, .003, .01],
-               "wrong_endpoint": [0, .008], "between_samples": [0, .01]}[bad]
+    samples = {"overshoot": [0, .013, .01], "backtrack": [0, .008, .003, .01],
+               "wrong_endpoint": [0, .007], "between_samples": [0, .01]}[bad]
     rows = np.zeros((len(samples), 5))
     rows[:, 0] = samples
     tr = SimpleNamespace(positions=rows)
@@ -161,3 +203,78 @@ def test_tilted_start_can_align_during_a_straight_lift(planner):
         xyz = p.scene.forwardKinematics(q, p.tip_frame, p.base_frame)[:3, 3]
         assert np.linalg.norm(xyz[:2] - start[:2]) < p.cartesian_path_tolerance
     assert aligned
+
+
+@pytest.mark.parametrize("target_sample", [2, 3, 4])
+def test_stroke_library_curves_through_reported_failure(planner, monkeypatch, target_sample):
+    """Representative curves through the logged point, not an exact run replay."""
+    p = planner
+    # Reconstructed hover above the first library stroke, using the captured
+    # canvas homography and height. No live state or user cache is read.
+    q = np.array([
+        -0.33182372261744475, 1.2023762849659572, -0.8728382465220008,
+        -0.3295294094989265, 1.61947278234116, -0.0029323420698924296,
+    ])
+    p.scene.setJointPositions(q)
+    start = np.array([0.4492896992491075, 0.1412714461187247, 0.0065])
+    target = np.array([0.4592117, 0.13437965, -0.00521281])
+    t = target_sample / 9
+    length = (start[1] - target[1]) / t
+    bend = (target[0] - start[0]) / (3 * t * (1 - t))
+    pressure = (0.0015 - target[2]) / 0.0105
+    peak = 0.2 + (pressure - 0.2) * 0.333 / t if t < 0.333 else pressure
+    assert 0.005 <= length <= 0.06
+    assert abs(bend) <= 0.02
+    assert 0.1 <= peak <= 0.95
+
+    # Same ten Bezier samples and pressure interpolation as BrushStroke.execute.
+    points = []
+    for t in np.linspace(0, 1, 10):
+        if t < 0.333:
+            z = (1 - t / 0.333) * 0.2 + (t / 0.333) * peak
+        elif t < 0.666:
+            z = peak
+        else:
+            z = (1 - (t - 0.666) / 0.333) * peak + ((t - 0.666) / 0.333) * 0.2
+        points.append(np.array([
+            start[0] + 3 * bend * t * (1 - t),
+            start[1] - t * length, 0.0015 - z * 0.0105,
+        ]))
+    np.testing.assert_allclose(points[target_sample], target, atol=1e-12)
+    for lift in (0.01, 0.01):
+        points.append(points[-1] + [0, 0, lift])
+    points.append(np.r_[points[-1][:2], 0.0415])
+
+    native = p._plan_cartesian_segment
+    checked_segments = []
+
+    def segment(begin, end, current):
+        tr = native(begin, end, current)
+        rows = np.asarray(tr.positions)
+        samples = np.concatenate([
+            a + np.linspace(0, 1, 9)[:, None] * (b - a)
+            for a, b in zip(rows, rows[1:])
+        ])
+        xyz = []
+        for row in samples:
+            full = current.copy()
+            full[p.arm_indices] = row
+            assert p.scene.isValidConfiguration(full)
+            assert not p.scene.hasCollisions(full)
+            assert p.brush_tilt_deg(full) <= 10.0
+            xyz.append(p.scene.forwardKinematics(full, p.tip_frame, p.base_frame)[:3, 3])
+        xyz = np.asarray(xyz)
+        direction = end - begin
+        progress = np.clip((xyz - begin) @ direction / np.dot(direction, direction), 0, 1)
+        error = np.linalg.norm(xyz - (begin + progress[:, None] * direction), axis=1)
+        assert error.max() <= p.cartesian_path_tolerance
+        assert np.linalg.norm(xyz[-1] - end) <= p.cartesian_path_tolerance
+        checked_segments.append(tr)
+        return tr
+
+    monkeypatch.setattr(p, "_plan_cartesian_segment", segment)
+    trajectory = p.plan_xyz_path(points, servo_degrees(p, q))
+    assert trajectory is not None
+    assert len(checked_segments) >= 10
+    assert "gripper" not in trajectory.joint_names
+    np.testing.assert_allclose(p.scene.getCurrentJointPositions(), q)
