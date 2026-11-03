@@ -268,7 +268,7 @@ def extract_paint_color(canvas_before, canvas_after, stroke_bool_map):
     # show_img(ca)
     return np.array(color)
 
-def random_init_painting(opt, background_img, n_strokes, ink=False, device='cuda'):
+def random_init_painting(opt, background_img, n_strokes, ink=False, device='cpu'):
     gridded_brush_strokes = []
     xys = [(x,y) for x in torch.linspace(-.95,.95,int(n_strokes**0.5)) \
                  for y in torch.linspace(-.95,.95,int(n_strokes**0.5))]
@@ -372,14 +372,14 @@ def init_brush_strokes(opt, diff, n_strokes, ink):
         brush_strokes.append(brush_stroke)
     return brush_strokes
 
-def initialize_painting(opt, n_strokes, target_img, background_img, ink, device='cuda'):
+def initialize_painting(opt, n_strokes, target_img, background_img, ink, device='cpu'):
     attn = (target_img[0,:3] - background_img[0,:3]).abs().mean(dim=0)
     brush_strokes = init_brush_strokes(opt, attn, n_strokes, ink)
     painting = Painting(opt, 0, background_img=background_img, 
         brush_strokes=brush_strokes).to(device)
     return painting
 
-def add_strokes_to_painting(opt, painting, rendered_painting, n_strokes, target_img, background_img, ink, device='cuda'):
+def add_strokes_to_painting(opt, painting, rendered_painting, n_strokes, target_img, background_img, ink, device='cpu'):
     attn = (target_img[0] - rendered_painting[0]).abs().mean(dim=0)
     brush_strokes = init_brush_strokes(opt, attn, n_strokes, ink)
     existing_strokes = [painting.brush_strokes[i] for i in range(len(painting.brush_strokes))]

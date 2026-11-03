@@ -197,7 +197,7 @@ class Painter():
         #     if not self.opt.dont_retrain_stroke_model:
         if not use_cache or not self.opt.dont_retrain_stroke_model:
             from param2stroke import train_param2stroke
-            train_param2stroke(self.opt, device='cpu')
+            train_param2stroke(self.opt, device=self.opt.stroke_model_device)
 
 
 

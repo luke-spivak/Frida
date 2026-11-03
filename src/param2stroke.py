@@ -14,7 +14,7 @@ import copy
 import gzip
 from torchvision.transforms.functional import affine
 
-def get_param2img(opt, device='cuda'):
+def get_param2img(opt, device='cpu'):
     
     w_canvas_m = opt.CANVAS_WIDTH_M
     h_canvas_m = opt.CANVAS_HEIGHT_M
@@ -35,8 +35,9 @@ def get_param2img(opt, device='cuda'):
     
     param2img = StrokeParametersToImage()
     param2img.load_state_dict(torch.load(
-        os.path.join(opt.cache_dir, 'param2img.pt')))
+        os.path.join(opt.cache_dir, 'param2img.pt'), map_location=device, weights_only=True))
     param2img.eval()
+    param2img.requires_grad_(False)  # Optimize stroke inputs, not the learned renderer.
     param2img.to(device)
 
     def forward(param, h_render_pix, w_render_pix):
@@ -81,7 +82,7 @@ def get_n_params(model):
     return pp
 
 
-def to_full_param(length, bend, z, alpha=0.0, device='cuda'):
+def to_full_param(length, bend, z, alpha=0.0, device='cpu'):
     full_param = torch.zeros((1,4)).to(device)
     
     full_param[0,0] = length 
@@ -96,6 +97,7 @@ def process_img(img):
 
 def log_all_permutations(model, writer, opt):
     # Length v Bend
+    device = next(model.parameters()).device
     n_img = 5
     lengths = torch.linspace(opt.MIN_STROKE_LENGTH, opt.MAX_STROKE_LENGTH, steps=n_img)
     bends = torch.linspace(-1.0*opt.MAX_BEND, opt.MAX_BEND, steps=n_img)
@@ -107,7 +109,7 @@ def log_all_permutations(model, writer, opt):
     for i in range(n_img):
         row = []
         for j in range(n_img):
-            trajectory = to_full_param(lengths[i], bends[j], 0.5)
+            trajectory = to_full_param(lengths[i], bends[j], 0.5, device=device)
             s = 1-special_sigmoid(model(trajectory))
             # print(s.shape)
             s = np.clip(s.detach().cpu().numpy()[0], a_min=0, a_max=1)
@@ -126,7 +128,7 @@ def log_all_permutations(model, writer, opt):
     for i in range(n_img):
         row = []
         for j in range(n_img):
-            trajectory = to_full_param(lengths[i], 0.0, zs[j])
+            trajectory = to_full_param(lengths[i], 0.0, zs[j], device=device)
             s = 1-special_sigmoid(model(trajectory))
             # print(s.shape)
             s = np.clip(s.detach().cpu().numpy()[0], a_min=0, a_max=1)
@@ -144,7 +146,7 @@ def log_all_permutations(model, writer, opt):
     for i in range(n_img):
         row = []
         for j in range(n_img):
-            trajectory = to_full_param(lengths[i], 0.0, 0.5, alphas[j])
+            trajectory = to_full_param(lengths[i], 0.0, 0.5, alphas[j], device=device)
             s = 1-model(trajectory)
             # print(s.shape)
             s = np.clip(s.detach().cpu().numpy()[0], a_min=0, a_max=1)
@@ -175,7 +177,10 @@ def remove_background_noise(strokes):
     # plt.colorbar()
     # plt.show()
     # print(torch.quantile(stroke_mean, 0.1))
-    unlikely_areas = (stroke_mean < torch.quantile(stroke_mean[stroke_mean > 0.001], 0.5))#[None,:,:]
+    signal = stroke_mean[stroke_mean > 0.001]
+    if signal.numel() == 0:
+        raise ValueError('Stroke library contains no visible strokes after thresholding')
+    unlikely_areas = (stroke_mean < torch.quantile(signal, 0.5))
     # plt.imshow(unlikely_areas*0.5 + strokes.mean(dim=0))
     # plt.colorbar()
     # plt.show()
@@ -258,7 +263,9 @@ def shift_invariant_loss(pred, real, n=8, delta=0.02):
     # print(mode, mode.mode, mode.count)
     return loss.mean() + l1_loss(pred, real)
 
-def train_param2stroke(opt, device='cuda'):
+def train_param2stroke(opt, device='cpu', *, max_iterations=5000, patience=200):
+    if max_iterations < 1 or patience < 1:
+        raise ValueError('max_iterations and patience must be positive')
     # param2img = get_param2img(opt)
     # x = param2img(torch.zeros(1,4, device=device), 200, 400)
     # print(x.shape)
@@ -272,11 +279,17 @@ def train_param2stroke(opt, device='cuda'):
     stroke_param_fns = glob.glob(os.path.join(opt.cache_dir, 'stroke_library', 'stroke_parameters*.npy'))
     stroke_img_fns = sorted(stroke_img_fns)
     stroke_param_fns = sorted(stroke_param_fns)
+    image_parts = [os.path.basename(p).replace('stroke_intensities', '', 1) for p in stroke_img_fns]
+    parameter_parts = [os.path.basename(p).replace('stroke_parameters', '', 1) for p in stroke_param_fns]
+    if not image_parts or image_parts != parameter_parts:
+        raise ValueError('Stroke library needs matching intensity and parameter files')
 
     strokes = None
     for stroke_img_fn in stroke_img_fns:
         with gzip.GzipFile(stroke_img_fn,'r') as f:
-            s = np.load(f, allow_pickle=True).astype(np.float32)/255.
+            s = np.load(f, allow_pickle=False).astype(np.float32)/255.
+            if s.ndim != 3 or len(s) == 0:
+                raise ValueError('Stroke intensities must have shape (N, H, W)')
 
             h_og, w_og = s[0].shape[0], s[0].shape[1]
             # Crop so that we only predict around the area around the stroke not all the background blank pix
@@ -291,6 +304,8 @@ def train_param2stroke(opt, device='cuda'):
             pix_per_m = w_og / opt.STROKE_LIBRARY_CANVAS_WIDTH_M
             ws, we, hs, he = ws_m*pix_per_m, we_m*pix_per_m, hs_m*pix_per_m, he_m*pix_per_m
             ws, we, hs, he = int(ws), int(we), int(hs), int(he)
+            if not (0 <= ws < we <= w_og and 0 <= hs < he <= h_og):
+                raise ValueError('Stroke crop falls outside the recorded canvas')
             # print(ws, we, hs, he)
             s = s[:, hs:he, ws:we]
 
@@ -298,7 +313,7 @@ def train_param2stroke(opt, device='cuda'):
 
     parameters = None
     for stroke_param_fn in stroke_param_fns:
-        p = np.load(stroke_param_fn, allow_pickle=True, encoding='bytes') 
+        p = np.load(stroke_param_fn, allow_pickle=False)
         parameters = p if parameters is None else np.concatenate([parameters, p]) 
     
     # with gzip.GzipFile(os.path.join(opt.cache_dir, 'stroke_intensities.npy'),'r') as f:
@@ -306,6 +321,8 @@ def train_param2stroke(opt, device='cuda'):
     # parameters = np.load(os.path.join(opt.cache_dir, 'stroke_parameters.npy'), 
     #         allow_pickle=True, encoding='bytes') 
 
+    if parameters.shape != (len(strokes), 4):
+        raise ValueError('Stroke parameters must have shape (N, 4) and match intensity count')
     strokes = torch.from_numpy(strokes).float().nan_to_num()
     parameters = torch.from_numpy(parameters.astype(np.float32)).float().nan_to_num()
     
@@ -358,8 +375,11 @@ def train_param2stroke(opt, device='cuda'):
             good_strokes.append(strokes[i])
             good_parameters.append(parameters[i])
     print(len(strokes)- len(good_strokes), 'strokes removed because average value too high')
+    if len(good_strokes) < 3:
+        raise ValueError('At least three usable strokes are needed for training and validation')
     strokes = torch.stack(good_strokes, dim=0)
     parameters = torch.stack(good_parameters, dim=0)
+    n = len(strokes)  # Filtering changes the split; leave two samples for BatchNorm.
 
     h, w = strokes[0].shape[0], strokes[0].shape[1]
 
@@ -376,29 +396,34 @@ def train_param2stroke(opt, device='cuda'):
 
     val_prop = .2
 
-    train_strokes = strokes[int(val_prop*n):]
-    train_parameters = parameters[int(val_prop*n):]
+    n_val = max(1, int(val_prop*n))
+    train_strokes = strokes[n_val:]
+    train_parameters = parameters[n_val:]
 
-    val_strokes = strokes[:int(val_prop*n)]
-    val_parameters = parameters[:int(val_prop*n)]
+    val_strokes = strokes[:n_val]
+    val_parameters = parameters[:n_val]
     print('{} training strokes. {} validation strokes'.format(len(train_strokes), len(val_strokes)))
 
     param_stds = train_parameters.std(dim=0)
 
-    for it in tqdm(range(5000)):
-        if best_hasnt_changed_for >= 200 and it > 200:
+    iterations = 0
+    for it in tqdm(range(max_iterations)):
+        if best_hasnt_changed_for >= patience and it > patience:
             break # all done :)
         optim.zero_grad()
 
-        noise = torch.randn(train_parameters.shape).to(device)*param_stds[None,:]*0.15 # For robustness
+        noise = torch.randn_like(train_parameters)*param_stds[None,:]*0.15 # For robustness
         pred_strokes = trans(train_parameters + noise)
 
         loss = shift_invariant_loss(pred_strokes, train_strokes)
         # loss = nn.MSELoss()(pred_strokes, train_strokes) # MSE loss produces crisper stroke images
 
         ep_loss = loss.item()
+        if not np.isfinite(ep_loss):
+            raise ValueError('Non-finite stroke-model training loss')
         loss.backward()
         optim.step()
+        iterations += 1
 
         opt.writer.add_scalar('loss/train_loss_stroke_model', ep_loss, it)
         
@@ -411,7 +436,9 @@ def train_param2stroke(opt, device='cuda'):
                 loss = shift_invariant_loss(pred_strokes_val, val_strokes)
                 if it % 15 == 0: 
                     opt.writer.add_scalar('loss/val_loss_stroke_model', loss.item(), it)
-                if loss.item() < best_val_loss and it > 50:
+                if not torch.isfinite(loss):
+                    raise ValueError('Non-finite stroke-model validation loss')
+                if loss.item() < best_val_loss:
                     best_val_loss = loss.item()
                     best_hasnt_changed_for = 0
                     best_model = copy.deepcopy(trans)
@@ -465,6 +492,10 @@ def train_param2stroke(opt, device='cuda'):
         
         log_all_permutations(best_model, opt.writer, opt)
     torch.save(best_model.cpu().state_dict(), os.path.join(opt.cache_dir, 'param2img.pt'))
+    with open(os.path.join(opt.cache_dir, 'training_metrics.json'), 'w') as f:
+        json.dump({'iterations': iterations, 'best_validation_loss': best_val_loss,
+                   'training_strokes': len(train_strokes), 'validation_strokes': len(val_strokes),
+                   'device': str(device)}, f, indent=2)
 
     return h_og, w_og
 

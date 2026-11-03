@@ -131,7 +131,7 @@ class BrushStroke(nn.Module):
                 color=None, 
                 ink=False,
                 a=None, xt=None, yt=None,
-                device='cuda'):
+                device='cpu'):
         super(BrushStroke, self).__init__()
 
         self.MAX_STROKE_LENGTH = opt.MAX_STROKE_LENGTH

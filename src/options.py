@@ -51,6 +51,8 @@ class Options(object):
         # Stroke Library Parameters
         parser.add_argument('--num_papers', default=4, type=int, help='How papers of strokes to paint for stroke modelling data.')
         parser.add_argument('--dont_retrain_stroke_model', action='store_true')
+        parser.add_argument('--stroke_model_device', choices=('cpu', 'cuda'), default='cpu',
+            help='Device for local stroke-model training; remote training uses CUDA.')
         parser.add_argument('--brush_length', type=float, default=None)
 
         # Planning Parameters
