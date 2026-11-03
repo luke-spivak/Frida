@@ -41,6 +41,11 @@ paid job with its default action; use `--help` for argument help without running
 job. See [Runpod setup and image rebuild instructions](docs/runpod.md). Calibration
 and robot operating instructions remain in [the SO101 README](src/SO101/README.md).
 
+The physical camera backend uses the Innomaker through OpenCV's
+`cv2.VideoCapture(0)`. Connect the camera and allow camera access for the Python
+process. `scripts/innomaker_test.py` checks capture and the calibrated canvas view.
+With `--simulate`, painting uses an in-memory canvas without opening a camera.
+
 The upstream project documentation follows; examples for previously removed
 research features and datasets may not apply to this checkout.
 
@@ -122,9 +127,6 @@ conda env create -n frida --file environment.yml
 # The following lines worked on our CUDA 12.2 system
 pip uninstall torch torchvision
 pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
-
-# Camera installation
-sudo apt install gphoto2 libgphoto2*
 
 # (optional) For training CoFRIDA, you'll need additional installation steps
 cd Frida/src

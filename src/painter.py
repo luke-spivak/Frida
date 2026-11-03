@@ -22,8 +22,7 @@ from canvas_z import HEIGHT_FILENAME, read_height_calibration
 
 from paint_utils3 import canvas_to_global_coordinates
 from robot import *
-# from camera.dslr import WebCam, SimulatedWebCam
-from camera.dslr import SimulatedWebCam
+from camera.simulated import SimulatedWebCam
 from camera.innomaker import WebCam
 
 
