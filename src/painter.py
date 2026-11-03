@@ -18,6 +18,7 @@ import pickle
 import math
 import gzip
 from brush_stroke import BrushStroke
+from canvas_z import HEIGHT_FILENAME, read_height_calibration
 
 from paint_utils3 import canvas_to_global_coordinates
 from robot import *
@@ -54,6 +55,17 @@ class Painter():
         '''
         self.opt = opt # Options object
         use_cache = opt.use_cache
+
+        # Reject stale/malformed Z grids before connecting to hardware.
+        self.canvas_z_calibration = None
+        height_calibration_path = os.path.join(opt.cache_dir, HEIGHT_FILENAME)
+        use_cached_height = use_cache and os.path.exists(height_calibration_path)
+        if use_cached_height:
+            params, self.canvas_z_calibration = read_height_calibration(height_calibration_path, opt)
+            self.Z_CANVAS = float(params['Z_CANVAS'])
+            self.Z_MAX_CANVAS = float(params['Z_MAX_CANVAS'])
+            if self.canvas_z_calibration is not None:
+                print('Loaded 3 x 3 canvas Z calibration.')
 
         self.robot = None
         if opt.simulate:
@@ -92,14 +104,11 @@ class Painter():
 
         self.H_coord = None # Translate coordinates based on faulty camera location
 
+        # Set how high the table is wrt the brush
+        # A cached brush height also enables the first return's fallback route.
         self.to_neutral()
 
-        # Set how high the table is wrt the brush
-        if use_cache and os.path.exists(os.path.join(self.opt.cache_dir, "brush_tip_to_table_calib.json")):
-            params = json.load(open(os.path.join(self.opt.cache_dir, "brush_tip_to_table_calib.json"),'rb'))
-            self.Z_CANVAS = params['Z_CANVAS']
-            self.Z_MAX_CANVAS = params['Z_MAX_CANVAS']
-        else:
+        if not use_cached_height:
             print('\nBrush tip calibration\n')
             print('Brush should be at very center of the canvas.')
             print('Use keys "w" and "s" to set the brush to just barely touch the canvas.')
@@ -230,6 +239,19 @@ class Painter():
 
     def move_to(self, x,y,z, q=None, method='direct', speed=0.05):
         self._move(x,y,z, q=q, method=method, speed=speed)
+
+
+    def canvas_z(self, x, y, z):
+        """Correct a canvas Z request before IK, using final commanded XY.
+
+        Explicit canvas callers only: station motions and manual calibration
+        keep their original coordinates. Legacy caches retain scalar heights.
+        """
+        grid = getattr(self, 'canvas_z_calibration', None)
+        if grid is None:
+            return z
+        return z + grid.contact_z(x, y) - self.Z_CANVAS
+
 
     def locate_items(self):
         self.dip_brush_in_water()

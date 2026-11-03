@@ -300,7 +300,9 @@ class BrushStroke(nn.Module):
         path = BrushStroke.get_rotated_trajectory(rotation, trajectory)
         
         painter.move_to(x_start+path[0,0], y_start+path[0,1], painter.Z_CANVAS + 0.03, speed=0.4)
-        painter.move_to(x_start+path[0,0], y_start+path[0,1], painter.Z_CANVAS + 0.005, speed=0.1)
+        start_x, start_y = x_start+path[0,0], y_start+path[0,1]
+        painter.move_to(start_x, start_y,
+                        painter.canvas_z(start_x, start_y, painter.Z_CANVAS + 0.005), speed=0.1)
 
         p0 = path[0,0], path[0,1], path[0,2]
         p3 = None
@@ -409,6 +411,10 @@ class BrushStroke(nn.Module):
                 x_next = min(max(painter.opt.X_CANVAS_MIN, x_next), painter.opt.X_CANVAS_MAX) 
                 y_next = min(max(painter.opt.Y_CANVAS_MIN, y_next), painter.opt.Y_CANVAS_MAX)
 
+                # Use the final (camera-adjusted and clamped) command XY, and
+                # correct every stroke sample before normal motion validation.
+                z = painter.canvas_z(x_next, y_next, z)
+
                 if smooth:
                     if t == 0 and i==0:
                         all_positions.append([x_next, y_next, z+0.02])
@@ -443,7 +449,8 @@ class BrushStroke(nn.Module):
         y_next = y_start+path[-1,1]
         x_next = min(max(painter.opt.X_CANVAS_MIN, x_next), painter.opt.X_CANVAS_MAX) 
         y_next = min(max(painter.opt.Y_CANVAS_MIN, y_next), painter.opt.Y_CANVAS_MAX)
-        painter.move_to(x_next, y_next, painter.Z_CANVAS + 0.04, speed=0.3)
+        painter.move_to(x_next, y_next,
+                        painter.canvas_z(x_next, y_next, painter.Z_CANVAS + 0.04), speed=0.3)
         # painter.hover_above(x_start+path[-1,0], y_start+path[-1,1], painter.Z_CANVAS)
 
         return stroke_complete

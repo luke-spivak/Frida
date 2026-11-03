@@ -6,6 +6,11 @@ import time
 
 from brush_stroke import euler_from_quaternion
 
+
+class MotionPlanningError(RuntimeError):
+    """A Cartesian trajectory could not be planned; execution has not started."""
+
+
 ##########################################################
 #################### Copyright 2022 ######################
 ################ by Peter Schaldenbrand ##################
@@ -774,7 +779,17 @@ class SO101(Robot, object):
             *unavailable,
         ]
 
-    def go_to_cartesian_pose(self, positions, orientations=None):
+    def go_to_cartesian_pose(self, positions, orientations=None, *, fallback_positions=None,
+                             travel_z=None):
+        """Plan the full route before moving; optionally try an alternate route.
+
+        fallback_positions is a complete route in FRIDA coordinates. It is
+        tried only after a planning error, never after execution starts.
+        travel_z requests a lift/traverse/descent to one destination. It cannot
+        be combined with a fallback route that might bypass the clearance.
+        """
+        if travel_z is not None and fallback_positions is not None:
+            raise ValueError("A clearance transfer cannot use fallback_positions")
         previous_command = getattr(self, "_last_arm_command_deg", None)
         self._last_arm_command_deg = None
         observation = self.arm.get_observation()
@@ -802,15 +817,39 @@ class SO101(Robot, object):
         # Only continue a successfully completed command while feedback remains
         # nearby. After manual repositioning or a failure, plan from measurement.
         planning_options = {}
+        if travel_z is not None:
+            # FRIDA and robot-base coordinates have the same vertical axis.
+            planning_options["travel_z"] = travel_z
         if previous_command is not None and all(
             np.isfinite(current_joints_deg[name])
             and abs(current_joints_deg[name] - previous_command[name]) <= 2.0
             for name in self.arm_joint_names
         ):
             planning_options["previous_command_deg"] = previous_command
-        trajectory = self.motion_planner.plan_xyz_path(
-            robot_positions, current_joints_deg, **planning_options
-        )
+        try:
+            trajectory = self.motion_planner.plan_xyz_path(
+                robot_positions, current_joints_deg, **planning_options
+            )
+        except (RuntimeError, ValueError) as direct_error:
+            if fallback_positions is None:
+                raise MotionPlanningError(
+                    f"Cartesian route planning failed: {direct_error}"
+                ) from direct_error
+            print("Direct route planning failed; trying the fallback route.", flush=True)
+            fallback_robot_positions = self.frida_to_robot(
+                np.atleast_2d(np.asarray(fallback_positions, dtype=float))
+            )
+            # Reuse the same measured start. Both legs must pass all planner
+            # checks before any trajectory commands are sent.
+            try:
+                trajectory = self.motion_planner.plan_xyz_path(
+                    fallback_robot_positions, current_joints_deg, **planning_options
+                )
+            except (RuntimeError, ValueError) as fallback_error:
+                raise MotionPlanningError(
+                    "Cartesian direct and fallback routes failed planning: "
+                    f"direct: {direct_error}; fallback: {fallback_error}"
+                ) from fallback_error
         if trajectory is None:
             self._last_arm_command_deg = planning_options.get("previous_command_deg")
             return True
