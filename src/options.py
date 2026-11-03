@@ -47,6 +47,8 @@ class Options(object):
 
         # Rendering Parameters
         parser.add_argument('--render_height', default=256, type=int, help='How much to downscale canvas for simulated environment')
+        parser.add_argument('--render_batch_size', default=64, type=int,
+                            help='Strokes per renderer batch; 0 selects the original sequential renderer')
 
         # Stroke Library Parameters
         parser.add_argument('--num_papers', default=4, type=int, help='How papers of strokes to paint for stroke modelling data.')

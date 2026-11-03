@@ -6,6 +6,7 @@ bicubic = InterpolationMode.BICUBIC
 import numpy as np
 from brush_stroke import BrushStroke
 from param2stroke import get_param2img
+from stroke_renderer import render_stroke_batches
 
 device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
@@ -15,6 +16,9 @@ class Painting(nn.Module):
         # h, w are canvas height and width in pixels
         super(Painting, self).__init__()
         self.n_strokes = n_strokes
+        self.render_batch_size = getattr(opt, 'render_batch_size', 64)
+        if type(self.render_batch_size) is not int or self.render_batch_size < 0:
+            raise ValueError('render_batch_size must be a nonnegative integer')
 
         self.background_img = background_img
 
@@ -76,8 +80,7 @@ class Painting(nn.Module):
         mostly_opaque = False#True
         if return_alphas: stroke_alphas = []
 
-        for brush_stroke in self.brush_strokes:
-            single_stroke = brush_stroke(h,w, self.param2img)
+        for single_stroke in self._render_strokes(h, w):
 
             if mostly_opaque: single_stroke[:,3][single_stroke[:,3] > 0.5] = 1.
             if return_alphas: stroke_alphas.append(single_stroke[:,3:])
@@ -101,6 +104,15 @@ class Painting(nn.Module):
             return canvas, alphas
         
         return canvas
+
+    def _render_strokes(self, h, w):
+        if self.render_batch_size == 0:
+            # Original per-stroke path for equivalence tests and benchmarks.
+            for stroke in self.brush_strokes:
+                yield stroke(h, w, self.param2img)
+        else:
+            yield from render_stroke_batches(list(self.brush_strokes), self.param2img,
+                                            h, w, self.render_batch_size)
 
     def get_alpha(self, h, w):
         # return the alpha values of the strokes of the painting
