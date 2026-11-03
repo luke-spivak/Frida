@@ -20,6 +20,8 @@ import glob
 class WebCam():
     def __init__(self, opt, debug=False):
         self.camera = self.camera_init()
+        self.recording = None
+        self._closed = False
         self.debug = debug
         self.H_canvas = None
 
@@ -34,10 +36,31 @@ class WebCam():
         # Todo: find the proper index of camera
         camera = cv2.VideoCapture(0)
         return camera
+
+    def start_recording(self, directory, fps=10):
+        from camera.recording import CameraRecording
+        if self._closed or self.recording is not None:
+            raise RuntimeError("Camera is closed or already recording")
+        self.recording = CameraRecording(self.camera, directory, fps=fps)
+        return self.recording.start()
+
+    def close(self, reason="completed"):
+        if self._closed:
+            return
+        self._closed = True
+        if self.recording is not None:
+            self.recording.close(reason)
+        else:
+            self.camera.release()
         
     def capture_image(self, channels='rgb', debug=False):
         # Capture image
-        success, img = self.camera.read()
+        if self.recording is not None:
+            img = self.recording.read()
+        else:
+            success, img = self.camera.read()
+            if not success or img is None:
+                raise RuntimeError("Innomaker camera did not return a frame")
         
         # Save image
         # capture_dir = '/tmp/innomaker_captures'
@@ -57,7 +80,7 @@ class WebCam():
         
     # todo: you could get rid of this lol
     def get_rgb_image(self, channels='rgb'):
-        return self.capture_image(self.camera, channels)
+        return self.capture_image(channels=channels)
 
     # return RGB image, color corrected
     def get_color_correct_image(self, use_cache=False):

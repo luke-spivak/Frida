@@ -74,6 +74,12 @@ class Options(object):
                             help='Reload paint after this many strokes in painting and library collection (also after cleaning/color changes).')
 
         # Logging Parameters
+        parser.add_argument('--no_recording', action='store_true',
+                            help='Disable overhead video for physical paint.py runs; simulation never records.')
+        parser.add_argument('--recording_dir', type=str, default=str(OUTPUT_DIR / 'recordings'),
+                            help='Parent directory for each physical painting session video and event log.')
+        parser.add_argument('--recording_fps', type=float, default=10,
+                            help='Overhead video sampling FPS; retain the calibrated native camera resolution.')
         parser.add_argument("--tensorboard_dir", type=str,
             default=str(OUTPUT_DIR / 'painting_log'), help='Where to write tensorboard log to.')
         parser.add_argument('--plan_gif_dir', type=str, default=str(OUTPUT_DIR))
