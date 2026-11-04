@@ -12,7 +12,7 @@ import pytest
 
 from paint_loading import load_setup
 from paint_repeatability import arguments, main, make_layout, make_protocol, run_sheets
-from repeatability_analysis import measure_mark, summarize
+from repeatability_analysis import analyze, measure_mark, summarize
 from test_paint_loading import setup, ROUND_BRUSH_XY
 
 
@@ -37,6 +37,68 @@ def test_preview_offline_without_modifying_calibration(setup, monkeypatch):
     assert report["paint_care"] == dict(reload_every=4, clean_every=12, wash_passes=1)
     assert len(list(path.parent.glob("*-layout.svg"))) == 3
     assert {p.name: p.read_bytes() for p in setup.cache_dir.iterdir()} == before
+
+
+def test_long_split_sheets_repeat_positions_record_and_analyze(setup):
+    args = repeatability_args(setup, "--length-mm", "32", "--split-directions", "--repeats", "2")
+    assert main(["--materials_json", str(args.materials_json), "--cache_dir", str(args.cache_dir),
+                 "--output-dir", str(args.output_dir), "--length-mm", "32",
+                 "--split-directions", "--repeats", "2"]) == 0
+    path, = args.output_dir.glob("*/test.json")
+    report = json.loads(path.read_text())
+    assert len(report["sheets"]) == 4
+    assert all(len(s["strokes"]) == 6 for s in report["sheets"])
+    marks = [m for s in report["sheets"] for m in s["strokes"]]
+    assert [m["stroke"] for m in marks] == list(range(1, 25))
+    for slot in range(1, 13):
+        pair = [m for m in marks if m["slot"] == slot]
+        assert len(pair) == 2
+        assert len({(m["x"], m["y"], m["angle_deg"]) for m in pair}) == 1
+        assert pair[0]["stroke_in_load"] != pair[1]["stroke_in_load"]
+    painter = SimpleNamespace(to_neutral=Mock(), clean_paint_brush=Mock(), get_paint=Mock())
+    execute = Mock(return_value=True)
+    def snapshot(name):
+        cv2.imwrite(str(path.parent / f"{name}-canvas.png"), np.full((139, 216, 3), 255, np.uint8))
+    run_sheets(args, painter, object(), report, path.parent, Mock(), snapshot,
+               execute, prompt=lambda _: None)
+    assert execute.call_count == 24
+    assert painter.clean_paint_brush.call_count == 4
+    assert painter.get_paint.call_count == 8
+    assert len(analyze(path.parent)) == 24
+    assert cv2.imread(str(path.parent / "comparison.png")) is not None
+
+
+def test_32mm_all_directions_fit_one_sheet_with_67mm_brush_xy(setup, monkeypatch):
+    correction = np.array([[.97732774, -.05603982, .02027078],
+                           [.11799699, .93978824, .01919113],
+                           [.34128479, -.07051059, 1.]])
+    (setup.cache_dir / "cached_H_coord.pkl").write_bytes(pickle.dumps(correction))
+    for name in ("robot", "painter", "camera.innomaker", "torch"):
+        monkeypatch.setitem(sys.modules, name, None)
+    assert main(["--materials_json", str(setup.materials_json), "--cache_dir", str(setup.cache_dir),
+                 "--output-dir", str(setup.output_dir), "--length-mm", "32", "--repeats", "1"]) == 0
+    path, = setup.output_dir.glob("*/test.json")
+    report = json.loads(path.read_text())
+    assert len(report["sheets"]) == 1
+    marks = report["sheets"][0]["strokes"]
+    assert len(marks) == 12
+    for region in ("left", "center", "right"):
+        assert {m["angle_deg"] for m in marks if m["region"] == region} == {0, 90, 45, -45}
+    opt, _, grid, _, _ = load_setup(setup)
+    limits = [np.array([grid.x_m[0], grid.y_m[0], grid.x_m[-1], grid.y_m[-1]]),
+              np.array([opt.CANVAS_POSITION[0] - opt.CANVAS_WIDTH_M / 2, opt.CANVAS_POSITION[1],
+                        opt.CANVAS_POSITION[0] + opt.CANVAS_WIDTH_M / 2,
+                        opt.CANVAS_POSITION[1] + opt.CANVAS_HEIGHT_M])]
+    for space, keys in enumerate((("command_x", "command_y"), ("x", "y"))):
+        boxes = []
+        for mark in marks:
+            start = np.array([mark[k] for k in keys])
+            angle = np.deg2rad(mark["angle_deg"])
+            end = start + .032 * np.array([np.cos(angle), np.sin(angle)])
+            low, high = np.minimum(start, end) - .006, np.maximum(start, end) + .006
+            assert np.all(low >= limits[space][:2]) and np.all(high <= limits[space][2:])
+            assert all(np.any(high <= old_low) or np.any(old_high <= low) for old_low, old_high in boxes)
+            boxes.append((low, high))
 
 
 @pytest.mark.parametrize("xy", [None, ROUND_BRUSH_XY])

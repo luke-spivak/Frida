@@ -529,7 +529,7 @@ class SO101MotionPlanner:
             self.scene.setJointPositions(q_start)
 
     def plan_xyz_path(self, positions, current_joints_deg, *, previous_command_deg=None,
-                      travel_z=None):
+                      travel_z=None, continuous_range=None):
         """
         positions: target XYZ points in robot base coordinates, meters.
         current_joints_deg: arm joint observations in degrees, before offsets;
@@ -539,11 +539,15 @@ class SO101MotionPlanner:
         travel_z: optional minimum transit Z for a single destination. Lift at
                   the starting XY, traverse horizontally, then descend at the
                   destination XY. Never descend before the horizontal traverse.
+        continuous_range: inclusive indices of contact samples in positions.
+                          Smooth only this span; descent/lift retain their stops.
 
         Returns a RoboPlan JointTrajectory. Does not move the arm.
         Follow the Cartesian polyline (2 mm model tolerance), stopping with
         zero velocity/acceleration at direction changes. Collinear points flow
-        through without stops. Unreachable/unsafe straight paths are rejected.
+        through without stops. An explicitly marked contact span uses one smooth
+        timing curve instead, with the same path tolerance and motion limits.
+        Unreachable/unsafe paths are rejected before any motion is executed.
         Goals must be within 10 degrees of bristles-down vertical. A tilted
         initial pose may approach the cone; after entering it, motion stays in it.
         """
@@ -559,6 +563,12 @@ class SO101MotionPlanner:
             raise ValueError("Expected finite XYZ points with shape (N, 3)")
         if travel_z is not None and (len(points) != 1 or not np.isfinite(travel_z)):
             raise ValueError("travel_z requires one destination and a finite height")
+        if continuous_range is not None:
+            if (travel_z is not None or not isinstance(continuous_range, (tuple, list))
+                    or len(continuous_range) != 2
+                    or any(type(i) is not int for i in continuous_range)
+                    or not 0 <= continuous_range[0] < continuous_range[1] < len(points)):
+                raise ValueError("continuous_range requires two ordered contact indices and no travel_z")
 
         # Populate the complete model state by joint name.
         q_full = self.scene.getCurrentJointPositions().copy()
@@ -599,15 +609,30 @@ class SO101MotionPlanner:
             height = max(float(travel_z), float(start_xyz[2]), float(target[2]))
             points = np.array([[start_xyz[0], start_xyz[1], height],
                                [target[0], target[1], height], target])
-        corners = self._cartesian_corners(np.vstack((start_xyz, points)))
-        if len(corners) == 1 and self.brush_tilt_deg(q) > self.brush_tilt_tolerance_deg:
-            corners.append(corners[0].copy())  # Align in place if feasible.
         pieces = []
         try:
-            for start_xyz, end_xyz in zip(corners, corners[1:]):
-                piece = self._plan_cartesian_segment(start_xyz, end_xyz, q.copy())
-                pieces.append(piece)
-                q[self.arm_indices] = piece.positions[-1]
+            if continuous_range is None:
+                routes = [(False, points)]
+            else:
+                first, last = continuous_range
+                routes = [(False, points[:first+1]), (True, points[first:last+1]),
+                          (False, points[last+1:])]
+            for continuous, route in routes:
+                if not len(route):
+                    continue
+                if continuous:
+                    piece = self._plan_continuous_stroke(route, q.copy())
+                    pieces.append(piece)
+                    q[self.arm_indices] = piece.positions[-1]
+                    continue
+                start_xyz = self.scene.forwardKinematics(q, self.tip_frame, self.base_frame)[:3, 3]
+                corners = self._cartesian_corners(np.vstack((start_xyz, route)))
+                if len(corners) == 1 and self.brush_tilt_deg(q) > self.brush_tilt_tolerance_deg:
+                    corners.append(corners[0].copy())
+                for start_xyz, end_xyz in zip(corners, corners[1:]):
+                    piece = self._plan_cartesian_segment(start_xyz, end_xyz, q.copy())
+                    pieces.append(piece)
+                    q[self.arm_indices] = piece.positions[-1]
             if not pieces:
                 return None
             trajectory = JointTrajectory()
@@ -687,6 +712,57 @@ class SO101MotionPlanner:
                     raise
                 print(f"Cartesian segment cubic rejected: {exc}. Retrying with quintic waypoint stops.", flush=True)
 
+    def _plan_continuous_stroke(self, points, q_start):
+        """One timing curve for a contact polyline; never fall back to tiny stops.
+
+        IK samples retain the requested XYZ/compression path. Validate the timed
+        spline against its assigned arc-length position, including interpolation
+        between commands, rather than nearest distance to any part of the path.
+        """
+        if self.brush_tilt_deg(q_start) > self.brush_tilt_tolerance_deg:
+            raise RuntimeError("Continuous contact must start with the brush upright")
+        lengths = np.linalg.norm(np.diff(points, axis=0), axis=1)
+        keep = np.r_[True, lengths > 1e-12]
+        points = np.asarray(points)[keep]
+        if len(points) < 2:
+            raise ValueError("Continuous contact needs a nonzero path")
+        arc = np.r_[0., np.cumsum(np.linalg.norm(np.diff(points, axis=0), axis=1))]
+        q = q_start.copy()
+        waypoints, waypoint_arc = [q[self.arm_indices].copy()], [0.]
+        for index, (start, end) in enumerate(zip(points[:-1], points[1:])):
+            count = max(1, int(np.ceil((arc[index+1] - arc[index]) / self.cartesian_step)))
+            for fraction in np.linspace(0., 1., count+1)[1:]:
+                q_next = self._solve_xyz(start + fraction * (end-start), q,
+                                        brush_direction=self.brush_direction,
+                                        tilt_limit=self.brush_tilt_tolerance_deg)
+                if np.max(np.abs(q_next-q)) > 1e-8:
+                    waypoints.append(q_next[self.arm_indices].copy())
+                    waypoint_arc.append(arc[index] + fraction * (arc[index+1] - arc[index]))
+                q = q_next
+        if len(waypoints) == 1:
+            waypoints.append(waypoints[0].copy())
+            waypoint_arc.append(arc[-1])
+        waypoint_arc[-1] = arc[-1]
+        trajectory, progress, knots = self._quintic_trajectory(waypoints, return_progress=True)
+        self._validate_trajectory(trajectory, q_start)
+        self._validate_stroke_path(trajectory, q_start, points, arc, waypoint_arc, progress, knots)
+        return trajectory
+
+    def _validate_stroke_path(self, trajectory, q_full, points, arc, waypoint_arc, progress, knots):
+        previous, previous_s = trajectory.positions[0], progress[0]
+        for current, s in zip(trajectory.positions, progress):
+            steps = max(1, int(np.ceil(np.max(np.abs(current-previous)) / .002)))
+            for fraction in np.linspace(0., 1., steps+1):
+                q = q_full.copy()
+                q[self.arm_indices] = previous + fraction * (current-previous)
+                xyz = self.scene.forwardKinematics(q, self.tip_frame, self.base_frame)[:3, 3]
+                distance = np.interp(previous_s + fraction * (s-previous_s), knots, waypoint_arc)
+                target = np.array([np.interp(distance, arc, points[:, axis]) for axis in range(3)])
+                error = np.linalg.norm(xyz-target)
+                if error > self.cartesian_path_tolerance:
+                    raise RuntimeError(f"Continuous stroke leaves its assigned path ({error*1000:.3f} mm)")
+            previous, previous_s = current, s
+
     def _validate_cartesian_segment(self, trajectory, q_full, start, end):
         """Check the assigned finite line, including between command samples.
 
@@ -723,7 +799,7 @@ class SO101MotionPlanner:
 
     def _quintic_trajectory(
         self, waypoints, stop_at_waypoints=False, dt=0.02,
-        velocity_scale=0.15, acceleration_scale=0.225,
+        velocity_scale=0.15, acceleration_scale=0.225, return_progress=False,
     ):
         """Time a smooth joint path with s(u)=10u³−15u⁴+6u⁵, u=t/T.
 
@@ -733,11 +809,16 @@ class SO101MotionPlanner:
         intermediate stops. No servo settings or hardware are involved.
         speed_scale compresses time: velocity scales by k, acceleration by k².
         The model's full velocity/acceleration limits remain upper bounds.
+        return_progress also returns the spline parameter at command times and
+        its waypoint knots, for checking assigned Cartesian path progress.
         """
         def clock(u):
             return (u**3 * (10 + u * (-15 + 6*u)),
                     30 * u**2 * (1-u)**2,
                     60 * u * (1-u) * (1-2*u))
+
+        if return_progress and stop_at_waypoints:
+            raise ValueError("Path progress is available only for continuous timing")
 
         scales = np.array([dt, velocity_scale, acceleration_scale, self.speed_scale])
         if not np.isfinite(scales).all() or np.any(scales <= 0):
@@ -816,6 +897,8 @@ class SO101MotionPlanner:
         trajectory.positions = np.concatenate(positions)
         trajectory.velocities = np.concatenate(velocities)
         trajectory.accelerations = np.concatenate(accelerations)
+        if return_progress:
+            return trajectory, s, knots
         return trajectory
 
     def _validate_trajectory(self, trajectory, q_full):

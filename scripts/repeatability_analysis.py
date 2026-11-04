@@ -134,6 +134,8 @@ def analyze(directory):
     for column, sheet in enumerate(sheets):
         cv2.putText(image, f"Sheet {sheet['sheet']}", (column * cell_w + 8, 43), cv2.FONT_HERSHEY_SIMPLEX, .5, (0, 0, 0), 1)
         for slot in range(1, 13):
+            if (slot, sheet["sheet"]) not in panels:
+                continue  # Split-direction sheets contain only six of the twelve slots.
             measured, crop, mask = panels[slot, sheet["sheet"]]
             x, y = column * cell_w, 55 + (slot - 1) * cell_h
             label = f"{measured['stroke']}: {measured['region']} {measured['direction']}"

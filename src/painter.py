@@ -204,10 +204,13 @@ class Painter():
         self._at_canvas = False
         self.robot.go_to_cartesian_pose([neutral])
 
-    def move_to_trajectories(self, positions, orientations):
+    def move_to_trajectories(self, positions, orientations, *, continuous_range=None):
         for i in range(len(orientations)):
             if orientations[i] is None:
                 orientations[i] = PERPENDICULAR_QUATERNION
+        if continuous_range is not None and self.opt.robot == 'so101':
+            return self.robot.go_to_cartesian_pose(
+                positions, orientations, continuous_range=continuous_range)
         return self.robot.go_to_cartesian_pose(positions, orientations)
 
     def _move(self, x, y, z, q=None, timeout=20, method='direct', 

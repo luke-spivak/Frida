@@ -279,6 +279,7 @@ class BrushStroke(nn.Module):
         if smooth:
             all_positions = []
             all_orientations = []
+            contact_start, contact_end = None, None
 
         # Need to translate x,y a bit to be accurate according to camera
         if painter.H_coord is not None:
@@ -419,6 +420,9 @@ class BrushStroke(nn.Module):
                         all_orientations.append(q)
                         all_positions.append([x_next, y_next, z+0.005])
                         all_orientations.append(q)
+                    if contact_start is None:
+                        contact_start = len(all_positions)
+                    contact_end = len(all_positions)
                     all_positions.append([x_next, y_next, z])
                     all_orientations.append(q)
                     if t == 1 and (i == len(path)-4):
@@ -439,7 +443,13 @@ class BrushStroke(nn.Module):
 
         stroke_complete = False
         if smooth and ((n_points_off_canvas/n_points_total) < 0.9):
-            stroke_complete = painter.move_to_trajectories(all_positions, all_orientations)
+            if n_points_off_canvas == 0 and contact_end > contact_start:
+                stroke_complete = painter.move_to_trajectories(
+                    all_positions, all_orientations,
+                    continuous_range=(contact_start, contact_end))
+            else:
+                # Preserve explicit stops around boundary-triggered lifts.
+                stroke_complete = painter.move_to_trajectories(all_positions, all_orientations)
         
 
         # Don't over shoot the canvas

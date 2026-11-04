@@ -243,7 +243,7 @@ class SO101(Robot, object):
         ]
 
     def go_to_cartesian_pose(self, positions, orientations=None, *, fallback_positions=None,
-                             travel_z=None):
+                             travel_z=None, continuous_range=None):
         """Plan the full route before moving; optionally try an alternate route.
 
         fallback_positions is a complete route in FRIDA coordinates. It is
@@ -253,6 +253,8 @@ class SO101(Robot, object):
         """
         if travel_z is not None and fallback_positions is not None:
             raise ValueError("A clearance transfer cannot use fallback_positions")
+        if continuous_range is not None and (travel_z is not None or fallback_positions is not None):
+            raise ValueError("A continuous stroke cannot use travel_z or fallback_positions")
         previous_command = getattr(self, "_last_arm_command_deg", None)
         self._last_arm_command_deg = None
         observation = self.arm.get_observation()
@@ -280,6 +282,8 @@ class SO101(Robot, object):
         # Only continue a successfully completed command while feedback remains
         # nearby. After manual repositioning or a failure, plan from measurement.
         planning_options = {}
+        if continuous_range is not None:
+            planning_options["continuous_range"] = continuous_range
         if travel_z is not None:
             # FRIDA and robot-base coordinates have the same vertical axis.
             planning_options["travel_z"] = travel_z

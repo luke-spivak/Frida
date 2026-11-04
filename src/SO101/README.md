@@ -499,6 +499,33 @@ length or trained model. The outside columns are near opposite edges of the
 measured grid, with a full 6 mm brush envelope inside it and the paper. Layouts
 that do not fit are rejected, never shortened or clamped to fit.
 
+For 32 mm strokes, all twelve marks fit on one sheet in three regions:
+horizontal across the top, vertical beside two stacked diagonals. Full 6 mm
+measurement envelopes are checked in command and target space. For the 67 mm brush:
+
+```bash
+python /Users/luke/Projects/Frida/scripts/paint_repeatability.py \
+  --cache_dir /Users/luke/Projects/Frida/src/caches/so101_67mm \
+  --length-mm 32 --repeats 1
+```
+
+This previews one sheet, twelve marks total; add `--execute` to paint and record.
+Increase `--repeats` to repeat the same positions on fresh sheets.
+SO101 contact strokes now share a continuous timing curve across their samples,
+including the nine-point Z correction and compression profile. Descent, lift,
+and station travel retain their stops. The complete route is checked before
+execution with the existing joint, collision, tilt, and 2 mm path bounds;
+continuous-path failures abort rather than falling back to tiny contact stops.
+Velocity/acceleration limits and `speed_scale=6.0` are unchanged.
+Each sheet starts with a wash/wipe and reload; reload again after four strokes.
+Normalized compression stays at 0.25 in the middle and 0.2 at the ends; the
+millimeter values depend on the selected cache and are printed before execution.
+With multiple sheets, measurements group identical slots across repeats. Directions
+occupy different locations, so comparisons do not fully isolate direction
+from position or paint conditions. Recording and before/after snapshots remain
+enabled. Optional `--split-directions` retains two sheets per repeat, with six
+marks and a wash before each sheet.
+
 Each fresh sheet repeats exactly the same target positions and directions. The
 painting order shifts between sheets so a given mark has different ages within
 its paint load. Wash/wipe once before each sheet (12-stroke interval), reload
@@ -526,7 +553,7 @@ still do not connect to hardware or validate the arm's actual starting pose.
 The default normalized middle compression remains **0.25**, with FRIDA's **0.2
 at the endpoints**: currently 3.0 mm and 2.4 mm commanded compression. These are
 positions, not measured forces. `--stroke-z` and `--length-mm` change only the test;
-`--repeats` accepts 2–6 sheets. Use the first sheet's result to decide whether to
+`--repeats` accepts 1–6 sheets. Use the first sheet's result to decide whether to
 continue or cancel at the next paper prompt.
 
 Each `outputs/paint-repeatability/<session>/` contains:
