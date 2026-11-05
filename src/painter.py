@@ -339,26 +339,13 @@ class Painter():
 
         x = self.opt.PALLETTE_POSITION[0] + x_offset
         y = self.opt.PALLETTE_POSITION[1] + y_offset
-        z = self.opt.PALLETTE_POSITION[2] 
-        
-        self.travel_to(x,y,z+self.opt.HOVER_FACTOR)
+        z = self.opt.PALLETTE_POSITION[2]
+        hover = [x, y, z + self.opt.HOVER_FACTOR]
 
-        positions, orientations = [], []
-        positions.append([x,y,z+self.opt.HOVER_FACTOR])
-        positions.append([x,y,z+0.02])
-        for i in range(3):
-            noise = np.clip(np.random.randn(2)*0.008, -0.015, 0.015)
-            dab_x, dab_y = x + noise[0], y + noise[1]
-            # Move sideways only after lifting clear of the paint.
-            positions.extend([
-                [dab_x, dab_y, z + 0.02],
-                [dab_x, dab_y, z],
-                [dab_x, dab_y, z + 0.02],
-            ])
-        positions.append([x,y,z + 0.02])
-        positions.append([x,y,z+self.opt.HOVER_FACTOR])
-        orientations = [None]*len(positions)
-        self.move_to_trajectories(positions, orientations)
+        self.travel_to(*hover)
+        self.move_to(x, y, z)
+        time.sleep(5.0)
+        self.move_to(*hover)
 
 
     def set_height(self, x, y, z, move_amount=0.0015):
