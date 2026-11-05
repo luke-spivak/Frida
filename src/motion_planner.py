@@ -799,7 +799,7 @@ class SO101MotionPlanner:
 
     def _quintic_trajectory(
         self, waypoints, stop_at_waypoints=False, dt=0.02,
-        velocity_scale=0.15, acceleration_scale=0.225, return_progress=False,
+        velocity_scale=0.10, acceleration_scale=0.15, return_progress=False,
     ):
         """Time a smooth joint path with s(u)=10u³−15u⁴+6u⁵, u=t/T.
 
