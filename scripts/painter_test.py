@@ -25,7 +25,7 @@ if __name__ == '__main__':
     
     opt.robot = "so101"
     opt.use_cache = True
-    opt.cache_dir = str(SOURCE_DIR / 'caches/sharpie_short_strokes')
+    opt.cache_dir = str(SOURCE_DIR / 'caches/so101_mvp')
     opt.dont_retrain_stroke_model = True
     opt.simulate = False
     opt.materials_json = str(ROOT / 'my_materials.json')

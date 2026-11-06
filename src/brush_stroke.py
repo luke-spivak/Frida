@@ -299,9 +299,6 @@ class BrushStroke(nn.Module):
         path = BrushStroke.get_rotated_trajectory(rotation, trajectory)
         
         painter.approach_stroke(x_start+path[0,0], y_start+path[0,1])
-        start_x, start_y = x_start+path[0,0], y_start+path[0,1]
-        painter.move_to(start_x, start_y,
-                        painter.canvas_z(start_x, start_y, painter.Z_CANVAS + 0.005), speed=0.1)
 
         p0 = path[0,0], path[0,1], path[0,2]
         p3 = None
@@ -444,6 +441,9 @@ class BrushStroke(nn.Module):
         stroke_complete = False
         if smooth and ((n_points_off_canvas/n_points_total) < 0.9):
             if n_points_off_canvas == 0 and contact_end > contact_start:
+                # Use the ordinary straight-line planner down to first contact,
+                # then start the continuous stroke from rest. The full descent,
+                # contact path, and lift are checked together before execution.
                 stroke_complete = painter.move_to_trajectories(
                     all_positions, all_orientations,
                     continuous_range=(contact_start, contact_end))

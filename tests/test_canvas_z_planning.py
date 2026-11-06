@@ -90,4 +90,4 @@ def test_corrected_stroke_passes_real_planner(offline_robot):
     stroke = SimpleNamespace(stroke_length=torch.tensor(.02), stroke_bend=torch.tensor(.003),
                              stroke_z=torch.tensor(.4), stroke_alpha=torch.tensor(0.))
     BrushStroke.execute(stroke, p, -.01, .36, 0.)
-    assert offline_robot.execute_trajectory.call_count == 4  # Approach, descent, stroke, lift.
+    assert offline_robot.execute_trajectory.call_count == 3  # Approach, descent + stroke, lift.

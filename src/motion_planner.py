@@ -539,8 +539,9 @@ class SO101MotionPlanner:
         travel_z: optional minimum transit Z for a single destination. Lift at
                   the starting XY, traverse horizontally, then descend at the
                   destination XY. Never descend before the horizontal traverse.
-        continuous_range: inclusive indices of contact samples in positions.
-                          Smooth only this span; descent/lift retain their stops.
+        continuous_range: inclusive indices of a stroke span in positions,
+                          including its entry descent when supplied. Smooth only
+                          this span; other approach/lift legs retain their stops.
 
         Returns a RoboPlan JointTrajectory. Does not move the arm.
         Follow the Cartesian polyline (2 mm model tolerance), stopping with
@@ -713,7 +714,7 @@ class SO101MotionPlanner:
                 print(f"Cartesian segment cubic rejected: {exc}. Retrying with quintic waypoint stops.", flush=True)
 
     def _plan_continuous_stroke(self, points, q_start):
-        """One timing curve for a contact polyline; never fall back to tiny stops.
+        """One timing curve for entry/contact; never fall back to tiny stops.
 
         IK samples retain the requested XYZ/compression path. Validate the timed
         spline against its assigned arc-length position, including interpolation

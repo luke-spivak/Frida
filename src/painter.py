@@ -306,8 +306,8 @@ class Painter():
     def dip_brush_in_water(self):
         x, y, z = self.opt.WATER_POSITION
         hover = [x, y, z + self.opt.HOVER_FACTOR]
-        self.travel_to(*hover)
-        positions = [hover, [x, y, z]]
+        self.travel_to(x, y, z)
+        positions = [[x, y, z]]
         radius = 0.005  # One 5 mm radius circle, at the existing dip depth.
         for angle in np.linspace(0.0, 2.0 * np.pi, 13):
             positions.append([x + radius * np.cos(angle), y + radius * np.sin(angle), z])
@@ -316,14 +316,13 @@ class Painter():
         self.move_to_trajectories(positions, orientations)
 
     def rub_brush_on_rag(self):
-        self.travel_to(self.opt.RAG_POSTITION[0],self.opt.RAG_POSTITION[1],self.opt.RAG_POSTITION[2]+self.opt.HOVER_FACTOR)
-        positions = []
-        positions.append([self.opt.RAG_POSTITION[0],self.opt.RAG_POSTITION[1],self.opt.RAG_POSTITION[2]+self.opt.HOVER_FACTOR])
-        positions.append([self.opt.RAG_POSTITION[0],self.opt.RAG_POSTITION[1],self.opt.RAG_POSTITION[2]])
+        x, y, z = self.opt.RAG_POSTITION
+        self.travel_to(x, y, z)
+        positions = [[x, y, z]]
         for i in range(5):
             noise = np.clip(np.random.randn(2)*0.03, a_min=-.03, a_max=0.03)
-            positions.append([self.opt.RAG_POSTITION[0]+noise[0],self.opt.RAG_POSTITION[1]+noise[1],self.opt.RAG_POSTITION[2]])
-        positions.append([self.opt.RAG_POSTITION[0],self.opt.RAG_POSTITION[1],self.opt.RAG_POSTITION[2]+self.opt.HOVER_FACTOR])
+            positions.append([x + noise[0], y + noise[1], z])
+        positions.append([x, y, z + self.opt.HOVER_FACTOR])
         orientations = [None]*len(positions)
         self.move_to_trajectories(positions, orientations)
 
@@ -342,9 +341,8 @@ class Painter():
         z = self.opt.PALLETTE_POSITION[2]
         hover = [x, y, z + self.opt.HOVER_FACTOR]
 
-        self.travel_to(*hover)
-        self.move_to(x, y, z)
-        time.sleep(5.0)
+        self.travel_to(x, y, z)
+        time.sleep(0.5)
         self.move_to(*hover)
 
 

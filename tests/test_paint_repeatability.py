@@ -12,7 +12,7 @@ import pytest
 
 from paint_loading import load_setup
 from paint_repeatability import arguments, main, make_layout, make_protocol, run_sheets
-from repeatability_analysis import analyze, measure_mark, summarize
+from repeatability_analysis import analyze, assign_paint, measure_mark, summarize
 from test_paint_loading import setup, ROUND_BRUSH_XY
 
 
@@ -190,3 +190,46 @@ def test_visible_mark_metrics_are_orientation_consistent_and_detect_gaps(angle):
     comparison = summarize([full, broken, empty])[0]
     assert comparison["detected_repeats"] == 2
     assert comparison["path_coverage_pct"]["min"] == 0
+
+
+def test_displaced_stroke_and_overlapping_crop_do_not_lose_or_mix_marks():
+    materials = {"CANVAS_POSITION": [0., 0.], "CANVAS_WIDTH_M": .1, "CANVAS_HEIGHT_M": .1}
+    common = dict(sheet=1, stroke_in_load=1, region="center", direction="test")
+    marks = [dict(common, slot=1, stroke=1, x=-.02, y=.04, angle_deg=0),
+             dict(common, slot=2, stroke=2, x=.01, y=.04, angle_deg=45)]
+    before = np.full((1000, 1000, 3), 255, np.uint8)
+    after = before.copy()
+    yy, xx = np.mgrid[:1000, :1000]
+    x, y = (xx+.5)/10-50, 100-(yy+.5)/10
+    # First stroke sits 9 mm below its intended path and has a 4 mm gap.
+    first = (x >= -20) & (x < -4) & (abs(y-31) <= 1.5) & ~((x >= -15) & (x < -11))
+    along, across = ((x-10)+(y-40))/np.sqrt(2), (-(x-10)+(y-40))/np.sqrt(2)
+    second = (along >= 0) & (along < 16) & (abs(across) <= 1.5)
+    # A separate small mark lies in the diagonal's rectangular crop but far
+    # from its actual finite path. It belongs to its own third target.
+    marks.append(dict(common, slot=3, stroke=3, x=.006, y=.053, angle_deg=90))
+    third = (abs(x-6) <= 1) & (y >= 53) & (y < 69)
+    after[first | second | third] = 0
+    assignments = assign_paint(before, after, marks, materials, 16)
+    results = [measure_mark(before, after, m, materials, 16, a)[0] for m, a in zip(marks, assignments)]
+    assert all(m["detected"] and not m["roi_clipped"] and not m["assignment_ambiguous"] for m in results)
+    assert results[0]["painted_area_mm2"] == pytest.approx(36, abs=1)
+    assert results[0]["start_offset_xy_mm"][1] == pytest.approx(-9, abs=.2)
+    # Coverage remains referenced to the requested path, not the shifted crop.
+    assert results[0]["path_coverage_pct"] == 0
+    assert results[1]["width_mm"] == pytest.approx(2.88, abs=.2)
+    assert results[1]["painted_area_mm2"] == pytest.approx(48, abs=1)
+    assert sum(a[0].sum() for a in assignments) == np.count_nonzero(first | second | third)
+
+
+def test_ambiguous_assignment_is_excluded_from_repeat_summary():
+    materials = {"CANVAS_POSITION": [0., 0.], "CANVAS_WIDTH_M": .1, "CANVAS_HEIGHT_M": .1}
+    common = dict(sheet=1, stroke_in_load=1, region="center", direction="horizontal", angle_deg=0, x=0.)
+    marks = [dict(common, slot=i+1, stroke=i+1, y=y) for i,y in enumerate([.04, .048])]
+    before = np.full((1000, 1000, 3), 255, np.uint8);after=before.copy()
+    after[550:570, 500:660] = 0  # Equidistant from both paths.
+    assignments = assign_paint(before, after, marks, materials, 16)
+    results = [measure_mark(before, after, m, materials, 16, a)[0] for m,a in zip(marks, assignments)]
+    assert any(m["detected"] for m in results)
+    assert all(m["assignment_ambiguous"] for m in results)
+    assert all(m["valid_repeats"] == 0 and m["width_mm"] is None for m in summarize(results))

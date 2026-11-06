@@ -1,7 +1,7 @@
 """Station transfers with real offline IK and fake hardware interfaces only."""
 
 from types import SimpleNamespace
-from unittest.mock import Mock
+from unittest.mock import ANY, Mock, call
 
 import numpy as np
 import pytest
@@ -39,8 +39,8 @@ def test_current_station_transfers_use_vertical_horizontal_vertical_legs(painter
         return native(start, end, q)
 
     monkeypatch.setattr(planner, "_plan_cartesian_segment", check_leg)
-    targets = [(-.01, .34, .0415), (-.2129, .1931, .1015),
-               (-.2601, .1122, .1015), (-.2136, .27739, .0994),
+    targets = [(-.01, .34, .0415), (-.2129, .1931, .0015),
+               (-.2601, .1122, .0015), (-.2136, .27739, -.0006),
                (-.01, .34, .0315), (-.2601, .1122, .025)]
     for target in targets:
         legs.clear()
@@ -52,25 +52,33 @@ def test_current_station_transfers_use_vertical_horizontal_vertical_legs(painter
                 assert start[2] >= .1015 - 1e-9
             else:
                 np.testing.assert_allclose(start[:2], end[:2], atol=1e-12)
+        descents = [(start, end) for start, end in legs if end[2] < start[2] - 1e-9]
+        assert len(descents) == 1
+        assert descents[0][0][2] >= .1015 - 1e-9
+        assert descents[0][1][2] == pytest.approx(target[2])
         np.testing.assert_allclose(robot.get_cartesian_pose(), target,
                                    atol=planner.cartesian_path_tolerance)
     assert robot.execute_trajectory.call_count == len(targets)
 
 
-def test_stations_and_neutral_use_transfer_but_local_canvas_keeps_old_approach(painter):
+@pytest.mark.parametrize("hover_height", [0.05, 0.1])
+def test_stations_and_neutral_use_transfer_but_local_canvas_keeps_old_approach(painter, monkeypatch, hover_height):
+    painter.opt.HOVER_FACTOR = hover_height
     robot = painter.robot
     robot.go_to_cartesian_pose = Mock()
     painter.move_to_trajectories = Mock()
+    painter.move_to = Mock()
+    monkeypatch.setattr("painter.time.sleep", Mock())
     painter.clean_paint_brush()
     requests = robot.go_to_cartesian_pose.call_args_list
     assert len(requests) == 2  # Water then rag, no old diagonal 9 cm approach.
-    np.testing.assert_allclose(requests[0].args[0], [[-.2129, .1931, .1015]])
-    np.testing.assert_allclose(requests[1].args[0], [[-.2601, .1122, .1015]])
+    np.testing.assert_allclose(requests[0].args[0], [[-.2129, .1931, .0015]])
+    np.testing.assert_allclose(requests[1].args[0], [[-.2601, .1122, .0015]])
     assert all(call.kwargs == {"travel_z": .1015} for call in requests)
     painter.get_paint(0)
     assert robot.go_to_cartesian_pose.call_args.kwargs == {"travel_z": .1015}
     np.testing.assert_allclose(robot.go_to_cartesian_pose.call_args.args[0],
-                               [[-.2136, .27739, .0994]])
+                               [[-.2136, .27739, -.0006]])
     painter.approach_stroke(-.01, .34)
     assert robot.go_to_cartesian_pose.call_args.kwargs == {"travel_z": .1015}
     assert painter._at_canvas
@@ -83,33 +91,24 @@ def test_stations_and_neutral_use_transfer_but_local_canvas_keeps_old_approach(p
 
 
 @pytest.mark.parametrize("paint_index", [0, 7])
-def test_paint_dabs_lift_before_sideways_motion_and_resample(painter, monkeypatch, paint_index):
-    painter.travel_to = Mock()
-    painter.move_to_trajectories = Mock()
-    samples = [np.array(p) for p in [(0, 0), (1, -1), (10, -10),
-                                     (-1, 1), (-10, 10), (.5, .5)]]
-    monkeypatch.setattr(np.random, "randn", Mock(side_effect=samples))
+def test_paint_load_is_one_centered_vertical_dip_with_pause(painter, monkeypatch, paint_index):
+    actions = Mock()
+    painter.travel_to = actions.travel_to
+    painter.move_to = actions.move_to
+    monkeypatch.setattr("painter.time.sleep", actions.sleep)
     center = np.array(painter.opt.PALLETTE_POSITION[:2]) + painter.opt.PAINT_DIFFERENCE * np.array(
         [paint_index // 6, paint_index % 6])
     depth = painter.opt.PALLETTE_POSITION[2]
-    loads = []
-    for _ in range(2):
-        painter.get_paint(paint_index)
-        positions, orientations = painter.move_to_trajectories.call_args.args
-        positions = np.array(positions)
-        contacts = positions[np.isclose(positions[:, 2], depth)]
-        assert len(contacts) == 3
-        assert np.all(np.abs(contacts[:, :2] - center) <= .015 + 1e-12)
-        assert orientations == [None] * len(positions)
-        for start, end in zip(positions[:-1], positions[1:]):
-            if not np.allclose(start[:2], end[:2]):
-                assert min(start[2], end[2]) >= depth + .02 - 1e-12
-        for index in np.flatnonzero(np.isclose(positions[:, 2], depth)):
-            for neighbor in (positions[index - 1], positions[index + 1]):
-                np.testing.assert_allclose(neighbor[:2], positions[index, :2])
-                assert neighbor[2] == pytest.approx(depth + .02)
-        loads.append(contacts)
-    assert not np.array_equal(loads[0], loads[1])
+    hover = [*center, depth + painter.opt.HOVER_FACTOR]
+
+    painter.get_paint(paint_index)
+
+    assert actions.mock_calls == [
+        call.travel_to(*center, depth),
+        call.sleep(ANY),
+        call.move_to(*hover),
+    ]
+    assert actions.sleep.call_args.args[0] > 0
 
 
 def test_failed_second_leg_sends_no_movement_and_never_tries_lower_route(painter, monkeypatch):

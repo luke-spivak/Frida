@@ -350,11 +350,12 @@ def test_brush_stroke_uses_approach_before_direct_descent(monkeypatch, approach_
         painter.move_to_trajectories.assert_not_called()
     else:
         assert BrushStroke.execute(stroke, painter, 0.02, 0.35, 0.0)
-        assert painter.move_to.call_count == 2  # Descent and final lift only.
-        np.testing.assert_allclose(painter.move_to.call_args_list[0].args, [0.03, 0.33, 0.0065])
-        assert painter.move_to.call_args_list[0].kwargs == {'speed': 0.1}
+        assert painter.move_to.call_count == 1  # Final lift; no 5 mm descent target.
         assert painter.move_to.call_args.args[2] == 0.0415
         painter.move_to_trajectories.assert_called_once()
+        positions = painter.move_to_trajectories.call_args.args[0]
+        np.testing.assert_allclose(positions[0], [0.03, 0.33, -0.0006])
+        assert painter.move_to_trajectories.call_args.kwargs == {'continuous_range': (0, 9)}
     painter.approach_stroke.assert_called_once()
     np.testing.assert_allclose(painter.approach_stroke.call_args.args, [0.03, 0.33])
 
@@ -600,13 +601,13 @@ def test_circular_dipping_offline(calibrated_planner, arm_model_deg, hover_heigh
     painter.travel_to = Mock()
     painter.move_to_trajectories = Mock()
     painter.dip_brush_in_water()
-    painter.travel_to.assert_called_once_with(*hover)
+    painter.travel_to.assert_called_once_with(*water)
     painter.move_to_trajectories.assert_called_once()
     positions, orientations = painter.move_to_trajectories.call_args.args
     positions = np.asarray(positions)
-    np.testing.assert_allclose(positions[[0, -1]], [hover, hover])
-    np.testing.assert_allclose(positions[[1, -2]], [water, water])
-    circle = positions[2:-2]
+    np.testing.assert_allclose(positions[-1], hover)
+    np.testing.assert_allclose(positions[[0, -2]], [water, water])
+    circle = positions[1:-2]
     np.testing.assert_allclose(circle[:, 2], water[2])
     np.testing.assert_allclose(np.linalg.norm(circle[:, :2] - water[:2], axis=1), 0.005)
     np.testing.assert_allclose(circle[0], circle[-1])
@@ -621,8 +622,8 @@ def test_circular_dipping_offline(calibrated_planner, arm_model_deg, hover_heigh
     q[p.arm_indices] = np.deg2rad(arm_model_deg)
     gripper = p.scene.getJointPositionIndices(["gripper"])[0]
     q[gripper] = np.deg2rad(-0.168010825)
-    # Test the dipping path from a solved hover pose; arbitrary folded-to-hover
-    # transits are covered separately and need not admit a straight line.
+    # Test the stirring path from a solved dip pose; station transfers are
+    # covered separately and need not admit a straight line from folded poses.
     h = np.asarray(painter.travel_to.call_args.args)
     q = p._solve_xyz(np.array([h[1], -h[0], h[2]]), q)
     for frida in (positions,):
@@ -679,17 +680,17 @@ def test_rag_wiping_within_30_mm_offline(calibrated_planner, monkeypatch, patter
     else:
         monkeypatch.setattr(np.random, "randn", np.random.RandomState(pattern).randn)
     painter.rub_brush_on_rag()
-    painter.travel_to.assert_called_once_with(*hover)
+    painter.travel_to.assert_called_once_with(*rag)
     positions, orientations = painter.move_to_trajectories.call_args.args
     positions = np.asarray(positions)
-    assert positions.shape == (8, 3)
-    np.testing.assert_allclose(positions[[0, -1]], [hover, hover])
-    np.testing.assert_allclose(positions[1], rag)
-    offsets = positions[2:-1, :2] - rag[:2]
+    assert positions.shape == (7, 3)
+    np.testing.assert_allclose(positions[-1], hover)
+    np.testing.assert_allclose(positions[0], rag)
+    offsets = positions[1:-1, :2] - rag[:2]
     assert np.max(np.abs(offsets)) <= 0.03 + 1e-12
     if isinstance(pattern, str):
         np.testing.assert_allclose(np.abs(offsets), 0.03)
-    np.testing.assert_allclose(positions[1:-1, 2], rag[2])
+    np.testing.assert_allclose(positions[:-1, 2], rag[2])
     assert orientations == [None] * len(positions)
 
     p = calibrated_planner
@@ -702,14 +703,14 @@ def test_rag_wiping_within_30_mm_offline(calibrated_planner, monkeypatch, patter
     gripper = p.scene.getJointPositionIndices(["gripper"])[0]
     # Validate the transfer, descent, five wipes, and final lift separately
     # through the production planner. There is no execution interface here.
-    for frida in (hover[None, :], positions):
+    for frida, travel_z in ((rag[None, :], .1015), (positions, None)):
         targets = np.column_stack((frida[:, 1], -frida[:, 0], frida[:, 2]))
         measured = {
             name: float(np.rad2deg(q[p.scene.getJointPositionIndices([name])[0]]))
                   - p.joint_offsets_deg.get(name, 0.0)
             for name in p.scene.getJointNames()
         }
-        trajectory = p.plan_xyz_path(targets, measured)
+        trajectory = p.plan_xyz_path(targets, measured, travel_z=travel_z)
         assert trajectory is not None
         assert "gripper" not in trajectory.joint_names
         previous = q.copy()

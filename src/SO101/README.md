@@ -511,8 +511,11 @@ python /Users/luke/Projects/Frida/scripts/paint_repeatability.py \
 
 This previews one sheet, twelve marks total; add `--execute` to paint and record.
 Increase `--repeats` to repeat the same positions on fresh sheets.
-SO101 contact strokes now share a continuous timing curve across their samples,
-including the nine-point Z correction and compression profile. Descent, lift,
+SO101 strokes descend from the 30 mm approach hover directly to first contact
+using the normal straight-line planner, with no 5 mm waypoint or stop. The
+descent ends at rest at first contact, then the contact stroke uses its own
+continuous timing curve.
+The nine-point Z correction and FRIDA compression profile are retained. Lift
 and station travel retain their stops. The complete route is checked before
 execution with the existing joint, collision, tilt, and 2 mm path bounds;
 continuous-path failures abort rather than falling back to tiny contact stops.
@@ -525,6 +528,15 @@ occupy different locations, so comparisons do not fully isolate direction
 from position or paint conditions. Recording and before/after snapshots remain
 enabled. Optional `--split-directions` retains two sheets per repeat, with six
 marks and a wash before each sheet.
+
+Analysis version 2 assigns whole newly darkened paint components to the nearest
+finite target path (12 mm search allowance), then expands the inspection crop to
+include the assigned paint. Each component belongs to at most one mark; fragments
+of a broken stroke can share a slot. Ambiguous assignments and canvas-edge
+clipping are flagged and excluded from repeat summaries. Target start coordinates
+and the 6 mm path-coverage corridor remain unchanged, so a displaced but complete
+mark can have low path coverage. These are image measurements, not brush force
+or robot tracking measurements. `measurements.json` records the analysis version.
 
 Each fresh sheet repeats exactly the same target positions and directions. The
 painting order shifts between sheets so a given mark has different ages within
