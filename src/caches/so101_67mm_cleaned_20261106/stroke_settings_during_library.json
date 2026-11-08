@@ -1,0 +1,14 @@
+{
+    "MAX_BEND": 0.02,
+    "MIN_STROKE_Z": 0.1,
+    "MIN_STROKE_LENGTH": 0.005,
+    "MAX_STROKE_LENGTH": 0.06,
+    "MAX_ALPHA": 0,
+    "CANVAS_WIDTH_M": 0.216,
+    "CANVAS_HEIGHT_M": 0.139,
+    "paint_care": {
+        "reload_every": 4,
+        "clean_every": 12,
+        "wash_passes": 1
+    }
+}

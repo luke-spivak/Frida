@@ -1,0 +1,12 @@
+{
+  "iterations": 826,
+  "best_iteration": 630,
+  "best_validation_loss": 0.10785122960805893,
+  "training_strokes": 124,
+  "validation_strokes": 32,
+  "device": "cpu",
+  "seed": 0,
+  "duration_seconds": 921.6876101250018,
+  "split_file": "evaluation_split.json",
+  "loss": "Existing shift_invariant_loss: minimum translated MSE plus unshifted L1. Duplicate integer translations evaluated once; value and gradient equivalence checked."
+}

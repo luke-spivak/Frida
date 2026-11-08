@@ -1,0 +1,1489 @@
+{
+  "source_cache": "/Users/luke/Projects/Frida/src/caches/so101_67mm",
+  "cleaned_cache": "/Users/luke/Projects/Frida/src/caches/so101_67mm_cleaned_20261106",
+  "source_sha256": {
+    "brush_tip_to_table_calib.before_z_grid.1793675993278094000.json": "b92b38ddca02247834c5971082b8713bdb26533a6610b8a3a8c0cd0e4669da1b",
+    "brush_tip_to_table_calib.json": "ca46eb654cc37ce95ddbb311d23e710abc4eff8f09a19b3ea0e2401624201533",
+    "cached_H_canvas.pkl": "a063002226a294dd533d87d75df6ef93aadeb56db948f35f5aa1894eaddccd17",
+    "cached_H_coord.pkl": "0c68a5a9931c7a38b0c564b9f77039ced77011cde8fffc9ca469758f316959b7",
+    "param2img.pt": "f98ff4b5f243a35cbbd2cccb86b9697b947f85b23b0ba46514eb49889bf2089e",
+    "param2stroke_settings.json": "7da5b158fd411f616a956e5edda6171da33d739cdcff3b932398993b2d860feb",
+    "stroke_library/stroke_intensities00010.npy": "4a4d7b403903b417054bb256ee1057dd805a6448cd3608b4b0a71c1ebc720d62",
+    "stroke_library/stroke_intensities00020.npy": "82b164ff6be4c9b9eb24d9c00243b32d0dde592166bddf398bdd29785e3ca180",
+    "stroke_library/stroke_intensities00030.npy": "c4e551a6ba772bc982a605203f55cbf106acfe9bc0985134acd89b12763d06c8",
+    "stroke_library/stroke_intensities00040.npy": "de62e6d61553b12a43bafc48e541c304665580ba2fbcfc860fab8cbf5d92c169",
+    "stroke_library/stroke_intensities00050.npy": "427887627256246ae76ae617a6f05ff2153a6c4165464bdaa1db06df07ade318",
+    "stroke_library/stroke_intensities00060.npy": "e57239b2833868fed939bd0a1dc7b367985537338b19de5be8ae61c2bf0d9d73",
+    "stroke_library/stroke_intensities00070.npy": "b8ed7c3e71de81aac81595c8aab35f7db34a0dc419d49b74db8eb31908d07faa",
+    "stroke_library/stroke_intensities00080.npy": "d1295c12c5594f20228405a1ed7cbe4fec0815299aa36b25583375ad35f076b3",
+    "stroke_library/stroke_intensities00090.npy": "39ce7b0521120060347798cc06645e79485db1dab2dd03d5ebfa169c6df067b4",
+    "stroke_library/stroke_intensities00100.npy": "0c6c70a947344c447de6e1da31f61ed1427ea96eb046d3f31af49d06d691ea47",
+    "stroke_library/stroke_intensities00110.npy": "193d1d92f1d556665eb31b7d29d9a3bac5540f62ae1eff65d44b5f2352b92419",
+    "stroke_library/stroke_intensities00120.npy": "50fd9ce07e56103e4fbe6bb312b5be2429de97a4ba5d3fb55fe43488ae1adce3",
+    "stroke_library/stroke_intensities00130.npy": "c0dc0375050d4a9e8ee5da9e3dfd3a1f63cd53b67ae0e3041db5b3d8c4bbb717",
+    "stroke_library/stroke_intensities00140.npy": "3b72008856bf7025d9c0fad0ea22626020d41b96933afa2e4ff41de6263f7440",
+    "stroke_library/stroke_intensities00150.npy": "7c62d139dff12fbbaf12c4ff0a48a68871b32a11fc94681a89030228116a0315",
+    "stroke_library/stroke_intensities00160.npy": "e1d4348aa161cabdd40fb9dd9eaba656e604c427e572a8e887d6915d81a9039f",
+    "stroke_library/stroke_parameters00010.npy": "b4aed85f3303af57bafd7ce85f05fc3dd157ccc41a97749e68474f2f353d04f2",
+    "stroke_library/stroke_parameters00020.npy": "87cc155ce791183aa70137fd41cf8b0a140bd017de0a4dd0aff69afb4ed38d5d",
+    "stroke_library/stroke_parameters00030.npy": "606566231b4ca5176ff62a86e767874c75c4e25edc7e793fa92e16d68d1b5d66",
+    "stroke_library/stroke_parameters00040.npy": "1c9e4c364af9d8d9681638f7d494f6f00cd26edc1b44db543d11061f7ebb16fb",
+    "stroke_library/stroke_parameters00050.npy": "bbdfdebc73e0a6daa4b498dc8a987381df9a885257d2efc29a29b71a9aaf5855",
+    "stroke_library/stroke_parameters00060.npy": "d5852d94671f186df1d56af446e05bd270adc5d0614b25339187c812ca83f0e4",
+    "stroke_library/stroke_parameters00070.npy": "f3f6edfafe66aa149363f3f69799c4feb7de6476de2b511dd4855de363afc5c4",
+    "stroke_library/stroke_parameters00080.npy": "273e1fa4a9861ce2786101577daa51608f92b1bd2d6113042c4338f05824f637",
+    "stroke_library/stroke_parameters00090.npy": "204af4f0667863899104a0ec455f729aedc6e555e036a02f294dc11499122524",
+    "stroke_library/stroke_parameters00100.npy": "b007fe932084ae58f8e18c5b3265b767fbeac3eddf08bd8a30601902db8680b6",
+    "stroke_library/stroke_parameters00110.npy": "95f4ea8d02515d3d72290da1a64a6c495c8e8c964e0b00aa608a11f608073047",
+    "stroke_library/stroke_parameters00120.npy": "f8779ecc74afae87936aa27cfa315d7a6fcf81a506454126b5149e927de3fe8c",
+    "stroke_library/stroke_parameters00130.npy": "45c706827697352c1d0f7c9cd86df9dd5868f89cfaf63abd66c144e5887c203b",
+    "stroke_library/stroke_parameters00140.npy": "6dfe43a6e328d20c8fa0e39a43fb1bcd1447a88bc3ea6c5808d7b8bbb3854e93",
+    "stroke_library/stroke_parameters00150.npy": "cde5952eb5b2c478c7174fe63ca04e7082c515ffed46a6d2d0bb452ee98c61f3",
+    "stroke_library/stroke_parameters00160.npy": "50d716015108bf3a726de3bbb64a7ae617f8dee53d69ead2ddf1fcd422399322",
+    "stroke_settings_during_library.json": "1cc435f8a3644598ca602ea84ef4d839c8b4723d43e753d410d90c2f43d1f9a8",
+    "training_metrics.json": "7915b05374dd9b640d43af50aa5d0f614622c486037b7971423b73ac239ec304"
+  },
+  "method": "Keep dominant stroke and non-edge detached paint within 2 mm; retain original intensities with a 3-pixel margin. Exclude ambiguous edge-connected/clipped examples. No recentering or shape alteration.",
+  "records": [
+    {
+      "id": 1,
+      "batch": "00010.npy",
+      "row": 0,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 0,
+      "original_foreground_pixels": 3813
+    },
+    {
+      "id": 2,
+      "batch": "00010.npy",
+      "row": 1,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 3,
+      "original_foreground_pixels": 19519
+    },
+    {
+      "id": 3,
+      "batch": "00010.npy",
+      "row": 2,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 0,
+      "original_foreground_pixels": 16050
+    },
+    {
+      "id": 4,
+      "batch": "00010.npy",
+      "row": 3,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 0,
+      "original_foreground_pixels": 5372
+    },
+    {
+      "id": 5,
+      "batch": "00010.npy",
+      "row": 4,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 0,
+      "original_foreground_pixels": 9741
+    },
+    {
+      "id": 6,
+      "batch": "00010.npy",
+      "row": 5,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 282,
+      "original_foreground_pixels": 22606
+    },
+    {
+      "id": 7,
+      "batch": "00010.npy",
+      "row": 6,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 0,
+      "original_foreground_pixels": 17451
+    },
+    {
+      "id": 8,
+      "batch": "00010.npy",
+      "row": 7,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 254,
+      "original_foreground_pixels": 23901
+    },
+    {
+      "id": 9,
+      "batch": "00010.npy",
+      "row": 8,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 0,
+      "original_foreground_pixels": 3042
+    },
+    {
+      "id": 10,
+      "batch": "00010.npy",
+      "row": 9,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 0,
+      "original_foreground_pixels": 13269
+    },
+    {
+      "id": 11,
+      "batch": "00020.npy",
+      "row": 0,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 0,
+      "original_foreground_pixels": 32608
+    },
+    {
+      "id": 12,
+      "batch": "00020.npy",
+      "row": 1,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 0,
+      "original_foreground_pixels": 4747
+    },
+    {
+      "id": 13,
+      "batch": "00020.npy",
+      "row": 2,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 0,
+      "original_foreground_pixels": 1733
+    },
+    {
+      "id": 14,
+      "batch": "00020.npy",
+      "row": 3,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 171,
+      "original_foreground_pixels": 9196
+    },
+    {
+      "id": 15,
+      "batch": "00020.npy",
+      "row": 4,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 0,
+      "original_foreground_pixels": 15154
+    },
+    {
+      "id": 16,
+      "batch": "00020.npy",
+      "row": 5,
+      "excluded": true,
+      "reason": "Stroke connected to an unrelated mark entering from the top edge; cannot separate reliably.",
+      "removed_foreground_pixels": 0,
+      "original_foreground_pixels": 32800
+    },
+    {
+      "id": 17,
+      "batch": "00020.npy",
+      "row": 6,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 924,
+      "original_foreground_pixels": 7007
+    },
+    {
+      "id": 18,
+      "batch": "00020.npy",
+      "row": 7,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 3370,
+      "original_foreground_pixels": 22984
+    },
+    {
+      "id": 19,
+      "batch": "00020.npy",
+      "row": 8,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 1488,
+      "original_foreground_pixels": 11367
+    },
+    {
+      "id": 20,
+      "batch": "00020.npy",
+      "row": 9,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 0,
+      "original_foreground_pixels": 25500
+    },
+    {
+      "id": 21,
+      "batch": "00030.npy",
+      "row": 0,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 250,
+      "original_foreground_pixels": 2325
+    },
+    {
+      "id": 22,
+      "batch": "00030.npy",
+      "row": 1,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 1194,
+      "original_foreground_pixels": 29052
+    },
+    {
+      "id": 23,
+      "batch": "00030.npy",
+      "row": 2,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 1445,
+      "original_foreground_pixels": 8265
+    },
+    {
+      "id": 24,
+      "batch": "00030.npy",
+      "row": 3,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 0,
+      "original_foreground_pixels": 16116
+    },
+    {
+      "id": 25,
+      "batch": "00030.npy",
+      "row": 4,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 0,
+      "original_foreground_pixels": 5389
+    },
+    {
+      "id": 26,
+      "batch": "00030.npy",
+      "row": 5,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 0,
+      "original_foreground_pixels": 23477
+    },
+    {
+      "id": 27,
+      "batch": "00030.npy",
+      "row": 6,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 601,
+      "original_foreground_pixels": 13678
+    },
+    {
+      "id": 28,
+      "batch": "00030.npy",
+      "row": 7,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 172,
+      "original_foreground_pixels": 2629
+    },
+    {
+      "id": 29,
+      "batch": "00030.npy",
+      "row": 8,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 0,
+      "original_foreground_pixels": 13243
+    },
+    {
+      "id": 30,
+      "batch": "00030.npy",
+      "row": 9,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 0,
+      "original_foreground_pixels": 29256
+    },
+    {
+      "id": 31,
+      "batch": "00040.npy",
+      "row": 0,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 0,
+      "original_foreground_pixels": 3602
+    },
+    {
+      "id": 32,
+      "batch": "00040.npy",
+      "row": 1,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 17,
+      "original_foreground_pixels": 2286
+    },
+    {
+      "id": 33,
+      "batch": "00040.npy",
+      "row": 2,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 469,
+      "original_foreground_pixels": 8005
+    },
+    {
+      "id": 34,
+      "batch": "00040.npy",
+      "row": 3,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 92,
+      "original_foreground_pixels": 30084
+    },
+    {
+      "id": 35,
+      "batch": "00040.npy",
+      "row": 4,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 0,
+      "original_foreground_pixels": 13958
+    },
+    {
+      "id": 36,
+      "batch": "00040.npy",
+      "row": 5,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 532,
+      "original_foreground_pixels": 9427
+    },
+    {
+      "id": 37,
+      "batch": "00040.npy",
+      "row": 6,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 0,
+      "original_foreground_pixels": 10825
+    },
+    {
+      "id": 38,
+      "batch": "00040.npy",
+      "row": 7,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 2341,
+      "original_foreground_pixels": 23522
+    },
+    {
+      "id": 39,
+      "batch": "00040.npy",
+      "row": 8,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 0,
+      "original_foreground_pixels": 3708
+    },
+    {
+      "id": 40,
+      "batch": "00040.npy",
+      "row": 9,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 800,
+      "original_foreground_pixels": 8388
+    },
+    {
+      "id": 41,
+      "batch": "00050.npy",
+      "row": 0,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 1406,
+      "original_foreground_pixels": 5192
+    },
+    {
+      "id": 42,
+      "batch": "00050.npy",
+      "row": 1,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 4133,
+      "original_foreground_pixels": 14443
+    },
+    {
+      "id": 43,
+      "batch": "00050.npy",
+      "row": 2,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 979,
+      "original_foreground_pixels": 18493
+    },
+    {
+      "id": 44,
+      "batch": "00050.npy",
+      "row": 3,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 1675,
+      "original_foreground_pixels": 29367
+    },
+    {
+      "id": 45,
+      "batch": "00050.npy",
+      "row": 4,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 0,
+      "original_foreground_pixels": 4861
+    },
+    {
+      "id": 46,
+      "batch": "00050.npy",
+      "row": 5,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 0,
+      "original_foreground_pixels": 14367
+    },
+    {
+      "id": 47,
+      "batch": "00050.npy",
+      "row": 6,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 0,
+      "original_foreground_pixels": 8599
+    },
+    {
+      "id": 48,
+      "batch": "00050.npy",
+      "row": 7,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 0,
+      "original_foreground_pixels": 6041
+    },
+    {
+      "id": 49,
+      "batch": "00050.npy",
+      "row": 8,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 24,
+      "original_foreground_pixels": 2205
+    },
+    {
+      "id": 50,
+      "batch": "00050.npy",
+      "row": 9,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 410,
+      "original_foreground_pixels": 17918
+    },
+    {
+      "id": 51,
+      "batch": "00060.npy",
+      "row": 0,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 32,
+      "original_foreground_pixels": 27113
+    },
+    {
+      "id": 52,
+      "batch": "00060.npy",
+      "row": 1,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 0,
+      "original_foreground_pixels": 19596
+    },
+    {
+      "id": 53,
+      "batch": "00060.npy",
+      "row": 2,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 0,
+      "original_foreground_pixels": 3464
+    },
+    {
+      "id": 54,
+      "batch": "00060.npy",
+      "row": 3,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 0,
+      "original_foreground_pixels": 3711
+    },
+    {
+      "id": 55,
+      "batch": "00060.npy",
+      "row": 4,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 422,
+      "original_foreground_pixels": 7144
+    },
+    {
+      "id": 56,
+      "batch": "00060.npy",
+      "row": 5,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 0,
+      "original_foreground_pixels": 7098
+    },
+    {
+      "id": 57,
+      "batch": "00060.npy",
+      "row": 6,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 3,
+      "original_foreground_pixels": 3043
+    },
+    {
+      "id": 58,
+      "batch": "00060.npy",
+      "row": 7,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 316,
+      "original_foreground_pixels": 23456
+    },
+    {
+      "id": 59,
+      "batch": "00060.npy",
+      "row": 8,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 0,
+      "original_foreground_pixels": 16603
+    },
+    {
+      "id": 60,
+      "batch": "00060.npy",
+      "row": 9,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 4,
+      "original_foreground_pixels": 11338
+    },
+    {
+      "id": 61,
+      "batch": "00070.npy",
+      "row": 0,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 0,
+      "original_foreground_pixels": 21154
+    },
+    {
+      "id": 62,
+      "batch": "00070.npy",
+      "row": 1,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 2,
+      "original_foreground_pixels": 12309
+    },
+    {
+      "id": 63,
+      "batch": "00070.npy",
+      "row": 2,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 354,
+      "original_foreground_pixels": 7306
+    },
+    {
+      "id": 64,
+      "batch": "00070.npy",
+      "row": 3,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 408,
+      "original_foreground_pixels": 15002
+    },
+    {
+      "id": 65,
+      "batch": "00070.npy",
+      "row": 4,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 0,
+      "original_foreground_pixels": 7531
+    },
+    {
+      "id": 66,
+      "batch": "00070.npy",
+      "row": 5,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 318,
+      "original_foreground_pixels": 18821
+    },
+    {
+      "id": 67,
+      "batch": "00070.npy",
+      "row": 6,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 593,
+      "original_foreground_pixels": 9040
+    },
+    {
+      "id": 68,
+      "batch": "00070.npy",
+      "row": 7,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 135,
+      "original_foreground_pixels": 13134
+    },
+    {
+      "id": 69,
+      "batch": "00070.npy",
+      "row": 8,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 120,
+      "original_foreground_pixels": 7742
+    },
+    {
+      "id": 70,
+      "batch": "00070.npy",
+      "row": 9,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 0,
+      "original_foreground_pixels": 23790
+    },
+    {
+      "id": 71,
+      "batch": "00080.npy",
+      "row": 0,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 0,
+      "original_foreground_pixels": 4161
+    },
+    {
+      "id": 72,
+      "batch": "00080.npy",
+      "row": 1,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 0,
+      "original_foreground_pixels": 12540
+    },
+    {
+      "id": 73,
+      "batch": "00080.npy",
+      "row": 2,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 0,
+      "original_foreground_pixels": 12370
+    },
+    {
+      "id": 74,
+      "batch": "00080.npy",
+      "row": 3,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 0,
+      "original_foreground_pixels": 11256
+    },
+    {
+      "id": 75,
+      "batch": "00080.npy",
+      "row": 4,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 1702,
+      "original_foreground_pixels": 25875
+    },
+    {
+      "id": 76,
+      "batch": "00080.npy",
+      "row": 5,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 0,
+      "original_foreground_pixels": 3940
+    },
+    {
+      "id": 77,
+      "batch": "00080.npy",
+      "row": 6,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 775,
+      "original_foreground_pixels": 14806
+    },
+    {
+      "id": 78,
+      "batch": "00080.npy",
+      "row": 7,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 3151,
+      "original_foreground_pixels": 25769
+    },
+    {
+      "id": 79,
+      "batch": "00080.npy",
+      "row": 8,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 1372,
+      "original_foreground_pixels": 27185
+    },
+    {
+      "id": 80,
+      "batch": "00080.npy",
+      "row": 9,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 40,
+      "original_foreground_pixels": 8231
+    },
+    {
+      "id": 81,
+      "batch": "00090.npy",
+      "row": 0,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 1128,
+      "original_foreground_pixels": 9572
+    },
+    {
+      "id": 82,
+      "batch": "00090.npy",
+      "row": 1,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 2331,
+      "original_foreground_pixels": 24452
+    },
+    {
+      "id": 83,
+      "batch": "00090.npy",
+      "row": 2,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 642,
+      "original_foreground_pixels": 32568
+    },
+    {
+      "id": 84,
+      "batch": "00090.npy",
+      "row": 3,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 0,
+      "original_foreground_pixels": 21165
+    },
+    {
+      "id": 85,
+      "batch": "00090.npy",
+      "row": 4,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 0,
+      "original_foreground_pixels": 3503
+    },
+    {
+      "id": 86,
+      "batch": "00090.npy",
+      "row": 5,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 0,
+      "original_foreground_pixels": 25415
+    },
+    {
+      "id": 87,
+      "batch": "00090.npy",
+      "row": 6,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 0,
+      "original_foreground_pixels": 21341
+    },
+    {
+      "id": 88,
+      "batch": "00090.npy",
+      "row": 7,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 0,
+      "original_foreground_pixels": 15006
+    },
+    {
+      "id": 89,
+      "batch": "00090.npy",
+      "row": 8,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 0,
+      "original_foreground_pixels": 6734
+    },
+    {
+      "id": 90,
+      "batch": "00090.npy",
+      "row": 9,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 474,
+      "original_foreground_pixels": 21289
+    },
+    {
+      "id": 91,
+      "batch": "00100.npy",
+      "row": 0,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 3787,
+      "original_foreground_pixels": 8502
+    },
+    {
+      "id": 92,
+      "batch": "00100.npy",
+      "row": 1,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 24,
+      "original_foreground_pixels": 15080
+    },
+    {
+      "id": 93,
+      "batch": "00100.npy",
+      "row": 2,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 2342,
+      "original_foreground_pixels": 9766
+    },
+    {
+      "id": 94,
+      "batch": "00100.npy",
+      "row": 3,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 30,
+      "original_foreground_pixels": 5649
+    },
+    {
+      "id": 95,
+      "batch": "00100.npy",
+      "row": 4,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 0,
+      "original_foreground_pixels": 3419
+    },
+    {
+      "id": 96,
+      "batch": "00100.npy",
+      "row": 5,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 0,
+      "original_foreground_pixels": 5972
+    },
+    {
+      "id": 97,
+      "batch": "00100.npy",
+      "row": 6,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 18,
+      "original_foreground_pixels": 7624
+    },
+    {
+      "id": 98,
+      "batch": "00100.npy",
+      "row": 7,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 0,
+      "original_foreground_pixels": 4490
+    },
+    {
+      "id": 99,
+      "batch": "00100.npy",
+      "row": 8,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 0,
+      "original_foreground_pixels": 18538
+    },
+    {
+      "id": 100,
+      "batch": "00100.npy",
+      "row": 9,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 34,
+      "original_foreground_pixels": 3130
+    },
+    {
+      "id": 101,
+      "batch": "00110.npy",
+      "row": 0,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 3974,
+      "original_foreground_pixels": 27942
+    },
+    {
+      "id": 102,
+      "batch": "00110.npy",
+      "row": 1,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 0,
+      "original_foreground_pixels": 10978
+    },
+    {
+      "id": 103,
+      "batch": "00110.npy",
+      "row": 2,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 0,
+      "original_foreground_pixels": 12034
+    },
+    {
+      "id": 104,
+      "batch": "00110.npy",
+      "row": 3,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 66,
+      "original_foreground_pixels": 22400
+    },
+    {
+      "id": 105,
+      "batch": "00110.npy",
+      "row": 4,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 0,
+      "original_foreground_pixels": 15976
+    },
+    {
+      "id": 106,
+      "batch": "00110.npy",
+      "row": 5,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 0,
+      "original_foreground_pixels": 7721
+    },
+    {
+      "id": 107,
+      "batch": "00110.npy",
+      "row": 6,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 0,
+      "original_foreground_pixels": 15823
+    },
+    {
+      "id": 108,
+      "batch": "00110.npy",
+      "row": 7,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 0,
+      "original_foreground_pixels": 7202
+    },
+    {
+      "id": 109,
+      "batch": "00110.npy",
+      "row": 8,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 0,
+      "original_foreground_pixels": 21041
+    },
+    {
+      "id": 110,
+      "batch": "00110.npy",
+      "row": 9,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 0,
+      "original_foreground_pixels": 23924
+    },
+    {
+      "id": 111,
+      "batch": "00120.npy",
+      "row": 0,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 1076,
+      "original_foreground_pixels": 14970
+    },
+    {
+      "id": 112,
+      "batch": "00120.npy",
+      "row": 1,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 4011,
+      "original_foreground_pixels": 28164
+    },
+    {
+      "id": 113,
+      "batch": "00120.npy",
+      "row": 2,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 255,
+      "original_foreground_pixels": 2273
+    },
+    {
+      "id": 114,
+      "batch": "00120.npy",
+      "row": 3,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 32,
+      "original_foreground_pixels": 5284
+    },
+    {
+      "id": 115,
+      "batch": "00120.npy",
+      "row": 4,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 80,
+      "original_foreground_pixels": 15603
+    },
+    {
+      "id": 116,
+      "batch": "00120.npy",
+      "row": 5,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 1855,
+      "original_foreground_pixels": 15427
+    },
+    {
+      "id": 117,
+      "batch": "00120.npy",
+      "row": 6,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 3963,
+      "original_foreground_pixels": 21006
+    },
+    {
+      "id": 118,
+      "batch": "00120.npy",
+      "row": 7,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 0,
+      "original_foreground_pixels": 15119
+    },
+    {
+      "id": 119,
+      "batch": "00120.npy",
+      "row": 8,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 0,
+      "original_foreground_pixels": 17019
+    },
+    {
+      "id": 120,
+      "batch": "00120.npy",
+      "row": 9,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 46,
+      "original_foreground_pixels": 24400
+    },
+    {
+      "id": 121,
+      "batch": "00130.npy",
+      "row": 0,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 52,
+      "original_foreground_pixels": 6541
+    },
+    {
+      "id": 122,
+      "batch": "00130.npy",
+      "row": 1,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 0,
+      "original_foreground_pixels": 27857
+    },
+    {
+      "id": 123,
+      "batch": "00130.npy",
+      "row": 2,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 0,
+      "original_foreground_pixels": 17421
+    },
+    {
+      "id": 124,
+      "batch": "00130.npy",
+      "row": 3,
+      "excluded": true,
+      "reason": "Main stroke is clipped by the bottom of the training crop.",
+      "removed_foreground_pixels": 0,
+      "original_foreground_pixels": 19190
+    },
+    {
+      "id": 125,
+      "batch": "00130.npy",
+      "row": 4,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 464,
+      "original_foreground_pixels": 12877
+    },
+    {
+      "id": 126,
+      "batch": "00130.npy",
+      "row": 5,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 3336,
+      "original_foreground_pixels": 16172
+    },
+    {
+      "id": 127,
+      "batch": "00130.npy",
+      "row": 6,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 5093,
+      "original_foreground_pixels": 10937
+    },
+    {
+      "id": 128,
+      "batch": "00130.npy",
+      "row": 7,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 7617,
+      "original_foreground_pixels": 11269
+    },
+    {
+      "id": 129,
+      "batch": "00130.npy",
+      "row": 8,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 12,
+      "original_foreground_pixels": 3974
+    },
+    {
+      "id": 130,
+      "batch": "00130.npy",
+      "row": 9,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 0,
+      "original_foreground_pixels": 26571
+    },
+    {
+      "id": 131,
+      "batch": "00140.npy",
+      "row": 0,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 295,
+      "original_foreground_pixels": 17886
+    },
+    {
+      "id": 132,
+      "batch": "00140.npy",
+      "row": 1,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 1234,
+      "original_foreground_pixels": 20697
+    },
+    {
+      "id": 133,
+      "batch": "00140.npy",
+      "row": 2,
+      "excluded": true,
+      "reason": "Main stroke is clipped by the bottom of the training crop.",
+      "removed_foreground_pixels": 418,
+      "original_foreground_pixels": 14966
+    },
+    {
+      "id": 134,
+      "batch": "00140.npy",
+      "row": 3,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 0,
+      "original_foreground_pixels": 18439
+    },
+    {
+      "id": 135,
+      "batch": "00140.npy",
+      "row": 4,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 0,
+      "original_foreground_pixels": 19657
+    },
+    {
+      "id": 136,
+      "batch": "00140.npy",
+      "row": 5,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 1072,
+      "original_foreground_pixels": 3297
+    },
+    {
+      "id": 137,
+      "batch": "00140.npy",
+      "row": 6,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 1715,
+      "original_foreground_pixels": 9727
+    },
+    {
+      "id": 138,
+      "batch": "00140.npy",
+      "row": 7,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 0,
+      "original_foreground_pixels": 15657
+    },
+    {
+      "id": 139,
+      "batch": "00140.npy",
+      "row": 8,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 0,
+      "original_foreground_pixels": 17549
+    },
+    {
+      "id": 140,
+      "batch": "00140.npy",
+      "row": 9,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 0,
+      "original_foreground_pixels": 12666
+    },
+    {
+      "id": 141,
+      "batch": "00150.npy",
+      "row": 0,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 0,
+      "original_foreground_pixels": 2850
+    },
+    {
+      "id": 142,
+      "batch": "00150.npy",
+      "row": 1,
+      "excluded": true,
+      "reason": "Main stroke is clipped by the bottom of the training crop.",
+      "removed_foreground_pixels": 316,
+      "original_foreground_pixels": 11316
+    },
+    {
+      "id": 143,
+      "batch": "00150.npy",
+      "row": 2,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 2,
+      "original_foreground_pixels": 15448
+    },
+    {
+      "id": 144,
+      "batch": "00150.npy",
+      "row": 3,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 828,
+      "original_foreground_pixels": 12355
+    },
+    {
+      "id": 145,
+      "batch": "00150.npy",
+      "row": 4,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 96,
+      "original_foreground_pixels": 5348
+    },
+    {
+      "id": 146,
+      "batch": "00150.npy",
+      "row": 5,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 421,
+      "original_foreground_pixels": 15993
+    },
+    {
+      "id": 147,
+      "batch": "00150.npy",
+      "row": 6,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 33,
+      "original_foreground_pixels": 3204
+    },
+    {
+      "id": 148,
+      "batch": "00150.npy",
+      "row": 7,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 0,
+      "original_foreground_pixels": 4299
+    },
+    {
+      "id": 149,
+      "batch": "00150.npy",
+      "row": 8,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 0,
+      "original_foreground_pixels": 26908
+    },
+    {
+      "id": 150,
+      "batch": "00150.npy",
+      "row": 9,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 227,
+      "original_foreground_pixels": 2279
+    },
+    {
+      "id": 151,
+      "batch": "00160.npy",
+      "row": 0,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 0,
+      "original_foreground_pixels": 14996
+    },
+    {
+      "id": 152,
+      "batch": "00160.npy",
+      "row": 1,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 46,
+      "original_foreground_pixels": 3706
+    },
+    {
+      "id": 153,
+      "batch": "00160.npy",
+      "row": 2,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 1263,
+      "original_foreground_pixels": 4552
+    },
+    {
+      "id": 154,
+      "batch": "00160.npy",
+      "row": 3,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 0,
+      "original_foreground_pixels": 10127
+    },
+    {
+      "id": 155,
+      "batch": "00160.npy",
+      "row": 4,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 0,
+      "original_foreground_pixels": 3399
+    },
+    {
+      "id": 156,
+      "batch": "00160.npy",
+      "row": 5,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 0,
+      "original_foreground_pixels": 4960
+    },
+    {
+      "id": 157,
+      "batch": "00160.npy",
+      "row": 6,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 0,
+      "original_foreground_pixels": 19007
+    },
+    {
+      "id": 158,
+      "batch": "00160.npy",
+      "row": 7,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 0,
+      "original_foreground_pixels": 11043
+    },
+    {
+      "id": 159,
+      "batch": "00160.npy",
+      "row": 8,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 63,
+      "original_foreground_pixels": 12658
+    },
+    {
+      "id": 160,
+      "batch": "00160.npy",
+      "row": 9,
+      "excluded": false,
+      "reason": null,
+      "removed_foreground_pixels": 530,
+      "original_foreground_pixels": 6994
+    }
+  ]
+}
