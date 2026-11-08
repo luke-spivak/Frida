@@ -52,6 +52,8 @@ class Options(object):
 
         # Stroke Library Parameters
         parser.add_argument('--num_papers', default=4, type=int, help='How papers of strokes to paint for stroke modelling data.')
+        parser.add_argument('--resume_stroke_library', action='store_true',
+            help='Append collection on fresh sheets to the saved library; num_papers counts additional sheets. Requires --use_cache.')
         parser.add_argument('--dont_retrain_stroke_model', action='store_true')
         parser.add_argument('--stroke_model_device', choices=('cpu', 'cuda'), default='cpu',
             help='Device for local stroke-model training; remote training uses CUDA.')
@@ -121,6 +123,11 @@ class Options(object):
         self.opt = {**self.opt, **materials}
         if self.robot != 'so101':
             self.parser.error('Only the so101 robot is supported')
+        if self.resume_stroke_library and (
+                not self.use_cache or self.simulate or self.load_plan or self.dont_plan):
+            self.parser.error('--resume_stroke_library requires --use_cache and physical collection, without --load_plan/--dont_plan')
+        if self.resume_stroke_library and self.num_papers < 1:
+            self.parser.error('--num_papers must be positive when resuming collection')
 
         thresh = 0.001 # 0.1cm tolerance on overshooting the canvas
         self.Y_CANVAS_MAX = self.CANVAS_POSITION[1] + self.CANVAS_HEIGHT_M - thresh
@@ -140,6 +147,10 @@ class Options(object):
                 self.MAX_ALPHA = settings['MAX_ALPHA']
                 self.STROKE_LIBRARY_CANVAS_WIDTH_M = settings['CANVAS_WIDTH_M']
                 self.STROKE_LIBRARY_CANVAS_HEIGHT_M = settings['CANVAS_HEIGHT_M']
+                if self.resume_stroke_library and (
+                        self.CANVAS_WIDTH_M != settings['CANVAS_WIDTH_M'] or
+                        self.CANVAS_HEIGHT_M != settings['CANVAS_HEIGHT_M']):
+                    self.parser.error('Cannot append strokes with different canvas dimensions')
 
     def __getattr__(self, attr_name):
         return self.opt[attr_name]

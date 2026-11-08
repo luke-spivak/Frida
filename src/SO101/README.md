@@ -287,6 +287,28 @@ are unaffected.
 
 Stroke-library collection uses the same configurable reload interval (default
 4), washes every 12 strokes, and saves the care settings in its library metadata.
+Collection prints and skips strokes rejected by motion planning, advances to
+another slot, and refreshes the camera background before collecting another
+sample. Motion checks are unchanged; execution errors and station failures
+still stop collection. Completed examples are saved every ten samples, with
+any remaining completed examples flushed on exit, including Ctrl-C/errors.
+
+To continue a partial library, keep its files and start with **fresh blank
+paper**. `--resume_stroke_library` appends new batches without replacing saved
+samples; `--num_papers` specifies additional sheets, not the original total:
+
+```bash
+MPLBACKEND=Agg python /Users/luke/Projects/Frida/src/paint.py \
+  --materials_json /Users/luke/Projects/Frida/my_materials.json \
+  --cache_dir /Users/luke/Projects/Frida/src/caches/so101_67mm \
+  --use_cache --resume_stroke_library --num_papers 4 --stroke_model_device cpu
+```
+
+Keep the same brush, canvas setup, and calibration when appending. Existing
+sample pairs are validated before hardware connects. Training runs on both old
+and new samples after collection; stop at the subsequent paint-planning prompt
+if no painting is intended. Omitting the resume flag reuses the saved library.
+
 This baseline comes from the [authors' released collection code](https://github.com/cmubig/Frida/blob/master/src/painter.py#L524-L533).
 The [paper's robot setup section](https://ar5iv.labs.arxiv.org/html/2210.00664)
 describes cleaning with water and a rag when changing colors, but does not state

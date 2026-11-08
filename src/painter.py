@@ -22,7 +22,8 @@ from brush_stroke import BrushStroke
 from canvas_z import HEIGHT_FILENAME, read_height_calibration
 
 from paint_utils3 import canvas_to_global_coordinates
-from robot import SO101, SimulatedRobot
+from robot import SO101, SimulatedRobot, MotionPlanningError
+from stroke_library import inspect_stroke_library
 from camera.simulated import SimulatedWebCam
 from camera.innomaker import WebCam
 
@@ -59,6 +60,12 @@ class Painter():
         self.opt = opt # Options object
         self._at_canvas = False
         use_cache = opt.use_cache
+        resume_library = getattr(opt, 'resume_stroke_library', False)
+        if resume_library:
+            # Validate saved batches before connecting to hardware.
+            saved_count, _ = inspect_stroke_library(os.path.join(opt.cache_dir, 'stroke_library'))
+            if saved_count and not os.path.isfile(os.path.join(opt.cache_dir, 'stroke_settings_during_library.json')):
+                raise ValueError('Saved stroke library is missing its collection settings')
 
         # Reject stale/malformed Z grids before connecting to hardware.
         self.canvas_z_calibration = None
@@ -164,10 +171,12 @@ class Painter():
         # self.paint_fill_in_library() ######################################################
 
         # Get brush strokes from stroke library
-        if not os.path.exists(os.path.join(self.opt.cache_dir, 'stroke_library')) or not use_cache:
+        if resume_library or not os.path.exists(os.path.join(self.opt.cache_dir, 'stroke_library')) or not use_cache:
             if not opt.simulate:
                 try:
-                    input('Need to create stroke library. Press enter to start.')
+                    prompt = (f'Appending to {saved_count} saved strokes. Place FRESH blank paper; press enter to start.'
+                              if resume_library else 'Need to create stroke library. Press enter to start.')
+                    input(prompt)
                 except SyntaxError:
                     pass
                 # self.paint_fill_in_library()
@@ -584,13 +593,16 @@ class Painter():
         w = self.opt.CANVAS_WIDTH_PIX
         h = self.opt.CANVAS_HEIGHT_PIX
 
+        lib_dir = os.path.join(self.opt.cache_dir, 'stroke_library')
+        os.makedirs(lib_dir, exist_ok=True)
+        n_strokes, last_batch = inspect_stroke_library(lib_dir)
+        if n_strokes and not getattr(self.opt, 'resume_stroke_library', False):
+            raise ValueError('Stroke library already contains data; use --resume_stroke_library to append')
+
         self.to_neutral()
         canvas_without_stroke = self.camera.get_canvas()
-        strokes_without_getting_new_paint = 999 
+        strokes_without_getting_new_paint = 999
         strokes_without_cleaning = 9999
-
-        lib_dir = os.path.join(self.opt.cache_dir, 'stroke_library')
-        if not os.path.exists(lib_dir): os.mkdir(lib_dir)
 
         # Figure out how many strokes can be made on the given canvas size
         n_strokes_y = int(math.floor(self.opt.CANVAS_HEIGHT_M/(self.opt.MAX_BEND+0.01)))
@@ -599,151 +611,177 @@ class Painter():
 
         stroke_parameters = [] # list of length, bend, z, alpha
         stroke_intensities = [] # list of 2D numpy arrays 0-1 where 1 is paint
-        n_strokes = 0
-        for paper_it in range(self.opt.num_papers):
-            for y_offset_pix_og in np.linspace((.03/self.opt.CANVAS_HEIGHT_M), 0.99-(.02/self.opt.CANVAS_HEIGHT_M), n_strokes_y)*h:
-                # for x_offset_pix in np.linspace(0.02, 0.99-(self.opt.MAX_STROKE_LENGTH/self.opt.CANVAS_WIDTH), n_strokes_x)*w:
+        def save_strokes():
+            nonlocal last_batch
+            if not stroke_parameters:
+                return
+            batch_end = last_batch + len(stroke_parameters)
+            param_fn = os.path.join(lib_dir, f'stroke_parameters{batch_end:05d}.npy')
+            image_fn = os.path.join(lib_dir, f'stroke_intensities{batch_end:05d}.npy')
+            # Exclusive creation protects earlier batches, including resumed data.
+            created = []
+            try:
+                with open(param_fn, 'xb') as stream:
+                    created.append(param_fn)
+                    np.save(stream, np.stack(stroke_parameters))
+                with open(image_fn, 'xb') as raw:
+                    created.append(image_fn)
+                    with gzip.GzipFile(fileobj=raw, mode='wb') as stream:
+                        np.save(stream, (np.stack(stroke_intensities) * 255).astype(np.uint8))
+                settings = {name: getattr(self.opt, name) for name in (
+                    'MAX_BEND', 'MIN_STROKE_Z', 'MIN_STROKE_LENGTH', 'MAX_STROKE_LENGTH',
+                    'MAX_ALPHA', 'CANVAS_WIDTH_M', 'CANVAS_HEIGHT_M')}
+                settings['paint_care'] = {'reload_every': self.opt.how_often_to_get_paint,
+                                          'clean_every': 12, 'wash_passes': 1}
+                with open(os.path.join(self.opt.cache_dir, 'stroke_settings_during_library.json'), 'w') as stream:
+                    json.dump(settings, stream, indent=4)
+            except BaseException:
+                for filename in created:
+                    os.unlink(filename)
+                raise
+            last_batch = batch_end
+            stroke_parameters.clear()
+            stroke_intensities.clear()
+            print(f'Stroke library: {n_strokes} examples saved.', flush=True)
 
-                x_offset_pix = 0.02 * w 
-                while(True): # x loop
-                    random_stroke = BrushStroke(self.opt)
-                    
-                    stroke_length_m = random_stroke.stroke_length.item()#random_stroke.trajectory[-1][0]
-                    stroke_length_pix = stroke_length_m * (w / self.opt.CANVAS_WIDTH_M)
-                    if stroke_length_pix + x_offset_pix > 0.98*w:
-                        break # No room left on the page width
-                    
-                    if n_strokes % 2 == 0:
-                        y_offset_pix = y_offset_pix_og + 0.0 * (h/self.opt.CANVAS_HEIGHT_M) # Offset y by 1cm every other stroke
-                    else:
-                        y_offset_pix = y_offset_pix_og
+        try:
+            for paper_it in range(self.opt.num_papers):
+                for y_offset_pix_og in np.linspace((.03/self.opt.CANVAS_HEIGHT_M), 0.99-(.02/self.opt.CANVAS_HEIGHT_M), n_strokes_y)*h:
+                    # for x_offset_pix in np.linspace(0.02, 0.99-(self.opt.MAX_STROKE_LENGTH/self.opt.CANVAS_WIDTH), n_strokes_x)*w:
 
-                    x, y = x_offset_pix / w, 1 - (y_offset_pix / h)
-                    x, y = min(max(x,0.),1.), min(max(y,0.),1.) #safety
-                    x,y,_ = canvas_to_global_coordinates(x,y,None,self.opt)
+                    x_offset_pix = 0.02 * w
+                    while(True): # x loop
+                        random_stroke = BrushStroke(self.opt)
 
-                    
-                    if not self.opt.ink:
-                        if strokes_without_cleaning >= 12:
-                            self.clean_paint_brush()
-                            self.get_paint(0)
-                            strokes_without_cleaning, strokes_without_getting_new_paint = 0, 0
-                        if strokes_without_getting_new_paint >= self.opt.how_often_to_get_paint:
-                            self.get_paint(0)
-                            strokes_without_getting_new_paint = 0
-                        strokes_without_getting_new_paint += 1
-                        strokes_without_cleaning += 1
+                        stroke_length_m = random_stroke.stroke_length.item()#random_stroke.trajectory[-1][0]
+                        stroke_length_pix = stroke_length_m * (w / self.opt.CANVAS_WIDTH_M)
+                        gap = 0.02*w if self.opt.ink else 0.05*w
+                        if stroke_length_pix + x_offset_pix > 0.98*w:
+                            break # No room left on the page width
+
+                        if n_strokes % 2 == 0:
+                            y_offset_pix = y_offset_pix_og + 0.0 * (h/self.opt.CANVAS_HEIGHT_M) # Offset y by 1cm every other stroke
+                        else:
+                            y_offset_pix = y_offset_pix_og
+
+                        x, y = x_offset_pix / w, 1 - (y_offset_pix / h)
+                        x, y = min(max(x,0.),1.), min(max(y,0.),1.) #safety
+                        x,y,_ = canvas_to_global_coordinates(x,y,None,self.opt)
 
 
-                    random_stroke.execute(self, x, y, 0)
+                        if not self.opt.ink:
+                            if strokes_without_cleaning >= 12:
+                                self.clean_paint_brush()
+                                self.get_paint(0)
+                                strokes_without_cleaning, strokes_without_getting_new_paint = 0, 0
+                            if strokes_without_getting_new_paint >= self.opt.how_often_to_get_paint:
+                                self.get_paint(0)
+                                strokes_without_getting_new_paint = 0
+                            strokes_without_getting_new_paint += 1
+                            strokes_without_cleaning += 1
 
-                    self.to_neutral()
-                    canvas_with_stroke = self.camera.get_canvas()
 
-                    stroke = canvas_with_stroke.copy()
-                    # show_img(stroke)
+                        rejection = None
+                        try:
+                            if random_stroke.execute(self, x, y, 0) is False:
+                                rejection = 'Stroke did not execute (outside canvas)'
+                        except MotionPlanningError as exc:
+                            rejection = str(exc)
+                        if rejection is not None:
+                            print(f'Skipping rejected library stroke at ({x:.4f}, {y:.4f}): {rejection}', flush=True)
+                            # A later lift can be rejected after contact already ran.
+                            # Refresh the background and move to another slot so a
+                            # rejected/partial mark cannot contaminate the next sample.
+                            self.to_neutral()
+                            canvas_without_stroke = self.camera.get_canvas()
+                            x_offset_pix += stroke_length_pix + gap
+                            continue
 
-                    #diff = np.mean(np.abs(canvas_with_stroke - canvas_without_stroke), axis=2)
-                    og_shape = canvas_without_stroke.shape
-                    canvas_before_ = cv2.resize(canvas_without_stroke, (512,512)) # For scipy memory error
-                    canvas_after_ = cv2.resize(canvas_with_stroke, (512,512)) # For scipy memory error
+                        self.to_neutral()
+                        canvas_with_stroke = self.camera.get_canvas()
 
-                    diff = np.max(np.abs(canvas_after_.astype(np.float32) - canvas_before_.astype(np.float32)), axis=2)
-                    # diff = diff / 255.#diff.max()
+                        stroke = canvas_with_stroke.copy()
+                        # show_img(stroke)
 
-                    # smooth the diff
-                    diff = median_filter(diff, size=(3,3))
-                    diff = cv2.resize(diff,  (og_shape[1], og_shape[0]))
+                        #diff = np.mean(np.abs(canvas_with_stroke - canvas_without_stroke), axis=2)
+                        og_shape = canvas_without_stroke.shape
+                        canvas_before_ = cv2.resize(canvas_without_stroke, (512,512)) # For scipy memory error
+                        canvas_after_ = cv2.resize(canvas_with_stroke, (512,512)) # For scipy memory error
 
-                    stroke[diff < 20, :] = 255.
-                    # show_img(stroke)
+                        diff = np.max(np.abs(canvas_after_.astype(np.float32) - canvas_before_.astype(np.float32)), axis=2)
+                        # diff = diff / 255.#diff.max()
 
-                    # Translate canvas so that the current stroke is directly in the middle of the canvas
-                    stroke = shift_image(stroke.copy(), 
-                        dx=int(.5*w - x_offset_pix), 
-                        dy=int(.5*h - y_offset_pix))
-                    
-                    stroke[stroke > 190] = 255
-                    # show_img(stroke)
-                    stroke = stroke / 255.
-                    # show_img(stroke)
-                    stroke = 1 - stroke 
-                    # show_img(stroke)
-                    stroke = stroke.mean(axis=2)
-                    # show_img(stroke)
-                    if stroke.max() < 0.1 or stroke.min() > 0.8:
-                        continue # Didn't make a mark
-                    # stroke /= stroke.max()
-                    # show_img(stroke)
+                        # smooth the diff
+                        diff = median_filter(diff, size=(3,3))
+                        diff = cv2.resize(diff,  (og_shape[1], og_shape[0]))
 
-                    if n_strokes % 3 == 0:
-                        import matplotlib
-                        # matplotlib.use('Agg')
-                        import matplotlib.pyplot as plt
-                        # plt.switch_backend('agg')
-                        fig = plt.figure()
-                        ax = fig.gca()
-                        ax.scatter(stroke.shape[1]/2, stroke.shape[0]/2)
-                        ax.imshow(stroke, cmap='gray', vmin=0, vmax=1)
-                        ax.set_xticks([]), ax.set_yticks([])
-                        fig.tight_layout()
-                        self.writer.add_figure('stroke_library/{}'.format(n_strokes), fig, 0)
+                        stroke[diff < 20, :] = 255.
+                        # show_img(stroke)
 
-                    # plt.scatter(int(w*.5), int(h*.5))
-                    # show_img(stroke)
+                        # Translate canvas so that the current stroke is directly in the middle of the canvas
+                        stroke = shift_image(stroke.copy(),
+                            dx=int(.5*w - x_offset_pix),
+                            dy=int(.5*h - y_offset_pix))
 
-                    parameter = np.array([random_stroke.stroke_length.item(), 
-                                          random_stroke.stroke_bend.item(), 
-                                          random_stroke.stroke_z.item(), 
-                                          random_stroke.stroke_alpha.item(),])
+                        stroke[stroke > 190] = 255
+                        # show_img(stroke)
+                        stroke = stroke / 255.
+                        # show_img(stroke)
+                        stroke = 1 - stroke
+                        # show_img(stroke)
+                        stroke = stroke.mean(axis=2)
+                        # show_img(stroke)
+                        if stroke.max() < 0.1 or stroke.min() > 0.8:
+                            canvas_without_stroke = canvas_with_stroke.copy()
+                            x_offset_pix += stroke_length_pix + gap
+                            continue # Didn't make a mark
+                        # stroke /= stroke.max()
+                        # show_img(stroke)
 
-                    stroke_intensities.append(stroke)
-                    stroke_parameters.append(parameter)
-                    n_strokes += 1
+                        if n_strokes % 3 == 0:
+                            import matplotlib
+                            # matplotlib.use('Agg')
+                            import matplotlib.pyplot as plt
+                            # plt.switch_backend('agg')
+                            fig = plt.figure()
+                            ax = fig.gca()
+                            ax.scatter(stroke.shape[1]/2, stroke.shape[0]/2)
+                            ax.imshow(stroke, cmap='gray', vmin=0, vmax=1)
+                            ax.set_xticks([]), ax.set_yticks([])
+                            fig.tight_layout()
+                            self.writer.add_figure('stroke_library/{}'.format(n_strokes), fig, 0)
 
-                    canvas_without_stroke = canvas_with_stroke.copy()
+                        # plt.scatter(int(w*.5), int(h*.5))
+                        # show_img(stroke)
 
-                    if n_strokes % save_batch_size == 0:
-                        # Save data
-                        param_fn = os.path.join(lib_dir, 'stroke_parameters{:05d}.npy'.format(n_strokes))
-                        with open(param_fn, 'wb') as f:
-                            np.save(f, np.stack(stroke_parameters, axis=0))
-                            
-                        image_fn = os.path.join(lib_dir, 'stroke_intensities{:05d}.npy'.format(n_strokes))
-                        with gzip.GzipFile(image_fn, 'w') as f:
-                            intensities = np.stack(np.stack(stroke_intensities, axis=0), axis=0)
-                            intensities = (intensities * 255).astype(np.uint8)
-                            np.save(f, intensities)
-                            
-                        with open(os.path.join(self.opt.cache_dir, 'stroke_settings_during_library.json'), 'w') as f:
-                            settings = {}
-                            settings['MAX_BEND'] = self.opt.MAX_BEND
-                            settings['MIN_STROKE_Z'] = self.opt.MIN_STROKE_Z
-                            settings['MIN_STROKE_LENGTH'] = self.opt.MIN_STROKE_LENGTH
-                            settings['MAX_STROKE_LENGTH'] = self.opt.MAX_STROKE_LENGTH
-                            settings['MAX_ALPHA'] = self.opt.MAX_ALPHA
-                            settings['CANVAS_WIDTH_M'] = self.opt.CANVAS_WIDTH_M
-                            settings['CANVAS_HEIGHT_M'] = self.opt.CANVAS_HEIGHT_M
-                            settings['paint_care'] = {'reload_every': self.opt.how_often_to_get_paint,
-                                                      'clean_every': 12, 'wash_passes': 1}
-                            json.dump(settings, f, indent=4)
-                    
-                        # Go back to empty because memory gets too large
-                        stroke_parameters = []
-                        stroke_intensities = [] 
-                    
-                    
-                    gap = 0.02*w if self.opt.ink else 0.05*w
-                    x_offset_pix += stroke_length_pix + gap
+                        parameter = np.array([random_stroke.stroke_length.item(),
+                                              random_stroke.stroke_bend.item(),
+                                              random_stroke.stroke_z.item(),
+                                              random_stroke.stroke_alpha.item(),])
 
-            if paper_it != self.opt.num_papers-1:
-                try:
-                    input('Place down new paper. Press enter to start.')
-                except SyntaxError:
-                    pass
-                # Retake with the new paper
-                canvas_without_stroke = self.camera.get_canvas()
-                
+                        stroke_intensities.append(stroke)
+                        stroke_parameters.append(parameter)
+                        n_strokes += 1
+
+                        canvas_without_stroke = canvas_with_stroke.copy()
+
+                        if len(stroke_parameters) >= save_batch_size:
+                            save_strokes()
+
+
+                        x_offset_pix += stroke_length_pix + gap
+
+                if paper_it != self.opt.num_papers-1:
+                    try:
+                        input('Place down new paper. Press enter to start.')
+                    except SyntaxError:
+                        pass
+                    # Retake with the new paper
+                    canvas_without_stroke = self.camera.get_canvas()
+        finally:
+            # Retain completed samples on normal exit, Ctrl-C, or execution failure.
+            save_strokes()
+
     def hover_above_positions(self):
         input("Press enter to move to the first position")
         self.move_to(self.opt.RAG_POSTITION[0],self.opt.RAG_POSTITION[1],self.opt.RAG_POSTITION[2]+self.opt.HOVER_FACTOR, speed=0.3)
