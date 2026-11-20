@@ -1,152 +1,114 @@
 # FRIDA for SO101
 
-This checkout adapts [FRIDA](https://github.com/cmubig/Frida) for an SO101 painting
-arm and an Innomaker camera. It supports calibration, stroke-library collection,
-stroke-model training, image-based painting plans, and execution/resumption of
-saved plans. Training and planning can run locally or on Runpod.
+**A work-in-progress robotic painter that turns reference images into brushstroke
+plans and executes them on an SO101 arm.**
 
-SO101 is the default and only physical robot backend. `--simulate` uses an
-in-memory canvas and simulated robot without opening hardware. Simulation still
-requires a matching saved stroke library and trained model.
+Built on [CMU's FRIDA](https://github.com/cmubig/Frida), this fork focuses on
+bringing learned brushstroke planning to a physical SO101 setup: robot motion,
+camera and canvas calibration, paint handling, and repeatable experiments.
+Training and image-based planning can run locally or on a Runpod GPU.
+
+<table>
+  <tr>
+    <td align="center"><a href="docs/media/so101-painting.jpg"><img src="docs/media/so101-painting.jpg" width="240" alt="SO101 robot holding a paintbrush over a sheet of black brushstrokes, with a palette and water nearby"></a></td>
+    <td align="center"><img src="docs/media/painting-demo.gif" width="512" alt="Overhead timelapse of the SO101 applying black brushstrokes to paper"></td>
+  </tr>
+  <tr>
+    <td align="center">Physical painting setup</td>
+    <td align="center">Painting in progress · 20× playback · 12-second excerpt</td>
+  </tr>
+</table>
+
+The media shows an early monochrome painting run. Physical painting quality and
+repeatability are still being evaluated.
+
+**Stack:** Python · PyTorch · OpenCV · LeRobot · RoboPlan · Pinocchio · Docker · Runpod
+
+[Setup and operation](docs/usage.md) · [Robot calibration](src/SO101/README.md) ·
+[GPU workflow](docs/runpod.md) · [Experiment results](docs/runpod-validation.md)
+
+## What this fork adds
+
+FRIDA provides the learned brushstroke model and differentiable painting
+optimization. The engineering work in this fork connects that pipeline to the
+SO101 and supports experimentation on real hardware.
+
+| Area | Implementation |
+| --- | --- |
+| **Robot motion** | SO101/LeRobot integration, brush-tip inverse kinematics, calibrated joint limits, collision and brush-tilt checks, and quintic trajectory timing. See [motion planning](src/motion_planner.py) and [execution](src/robot.py). |
+| **Physical calibration** | Camera-to-canvas mapping, brush geometry and joint offsets, and a nine-point canvas contact-height grid with interpolated compensation. See [robot setup](src/SO101/README.md) and [height calibration](src/canvas_z.py). |
+| **Resumable execution** | Saved stroke plans with atomic checkpoints and setup/model fingerprints checked before connecting to hardware. See [stroke plans](src/stroke_plan.py). |
+| **GPU training and planning** | Dockerized Runpod workers, versioned source and model bundles, artifact verification, and local download of plans for robot execution. See [remote workflow](docs/runpod.md). |
+| **Experiment tooling** | Paint loading, washing, and repeatability experiments; overhead video and timestamped stroke events for inspection. See [scripts](scripts/) and [camera recording](src/camera/recording.py). |
+
+## How it works
+
+1. **Calibrate and collect:** map the camera and canvas to the robot, then paint
+   and photograph a library of physical brushstrokes.
+2. **Learn and plan:** train FRIDA's stroke model, then optimize a sequence of
+   strokes against a reference image using pixel or CLIP image objectives.
+3. **Execute and observe:** validate the saved plan against the physical setup,
+   move the brush through the planned strokes, and record the session. Local
+   painting can observe the canvas and replan between batches.
+
+```mermaid
+flowchart LR
+    A[Physical stroke library] --> B[Learned stroke model]
+    B --> C[Image-based optimization]
+    D[Reference image] --> C
+    C --> E[Saved stroke plan]
+    E --> F[SO101 execution]
+    F --> G[Camera observation]
+    G -. Local replanning .-> C
+```
+
+Remote jobs train models or produce plans; physical data collection and robot
+execution stay local. Simulation uses an in-memory canvas and does not open
+hardware, but still needs a matching saved stroke library and trained model.
+
+## Current status and next steps
+
+- **Working prototype:** physical brushstroke execution, calibration tools,
+  stroke-library collection, model training, image-based planning, saved-plan
+  resumption, and session recording are implemented.
+- **Evaluation:** [documented GPU experiments](docs/runpod-validation.md) compare
+  objectives, stroke counts, planning times, and rendered-image metrics. Those
+  measurements describe simulated plans, not physical painting accuracy.
+- **Current limitations:** painting quality depends on the brush, paint loading,
+  and calibration. Setup currently relies on an existing `frida-lerobot`
+  environment; the inherited dependency files are not a complete fresh-install
+  recipe for the SO101 stack.
+- **Next milestones:** publish reference/plan/physical-result comparisons,
+  quantify physical stroke repeatability, and document a reproducible setup.
+
+## Running the project
+
+Start with the [setup and operation guide](docs/usage.md) for prerequisites,
+materials and cache selection, simulation, and saved-plan execution. For a new
+physical setup, follow the [SO101 calibration guide](src/SO101/README.md).
+
+For GPU training or planning, use the separate [Runpod workflow](docs/runpod.md).
+The repository also contains [regression tests](tests/) for motion planning,
+coordinate transforms, calibration, plan persistence, rendering, and remote
+artifacts. Run them from the repository root in the configured environment:
+
+```sh
+python -m pytest -q
+```
 
 ## Repository layout
 
 ```text
 src/             Painting, rendering, optimization, and robot code
-  camera/        Innomaker capture, simulation, calibration, and recording
-  losses/        Image-based CLIP objectives
-  SO101/         Robot models, meshes, and so101_offsets.json
-  caches/        Measured calibration, stroke libraries, and trained models
-  remote/        Runpod client/worker, Dockerfile, requirements, and runpod.json
-scripts/         Calibration, diagnostics, experiments, and runpod_workflow.py
-tests/           Automated regression tests
-targets/         Input images and palette images
-outputs/        Captures, painting_log, recordings, and job/experiment results
-docs/           Runpod instructions and validation history
-```
-
-## Environment and setup
-
-Use the existing `frida-lerobot` environment for the robot and local painting.
-The hardware path uses LeRobot's SO101 follower/Feetech support, RoboPlan,
-Pinocchio, and Viser alongside the painting and camera dependencies in
-`requirements.txt`. The dependency versions in that file and the Linux export
-in `environment.yml` are inherited pins, not a lockfile for the current SO101
-Mac environment; they do not install the complete robot stack.
-
-Run commands below from the repository root. Paths passed on the command line
-are relative to the working directory; built-in resource paths resolve from the
-source files.
-
-Supply your actual materials JSON and the cache matching the physical brush and
-calibration. The materials JSON specifies canvas geometry, station positions,
-and stroke limits; positions are in meters relative to the robot. The old
-`materials.json` and `src/caches/cache_6_6_cvpr` defaults are absent in this
-checkout, so pass `--materials_json` and `--cache_dir` explicitly.
-
-Follow the [SO101 operating and calibration instructions](src/SO101/README.md)
-for brush geometry, motor calibration, canvas height, and station setup. Measured
-calibration, stroke libraries, and trained models are stored together in the
-selected cache.
-
-## Plan and paint
-
-Create and save a plan in simulation, using an existing model:
-
-```sh
-python src/paint.py --materials_json my_materials.json \
-  --cache_dir src/caches/so101_mvp --use_cache --dont_retrain_stroke_model \
-  --simulate --objective l2 --objective_data targets/black_bear.png --objective_weight 1
-```
-
-The default plan destination is `cache_dir/stroke_plan.json`; override it with
-`--save_plan`. Simulation leaves all strokes pending.
-
-Execute or resume a saved plan with the matching physical setup:
-
-```sh
-python src/paint.py --materials_json my_materials.json \
-  --cache_dir src/caches/so101_mvp --use_cache \
-  --load_plan src/caches/so101_mvp/stroke_plan.json
-```
-
-Loading a plan validates its setup and calibration/model fingerprints before
-connecting to the robot, skips optimization and training, and resumes remaining
-strokes. The startup preview lets you inspect the canvas and palette before
-execution. `--dont_plan` loads the selected cache's default plan filename.
-
-For a new physical painting, omit `--simulate` from the planning command.
-`--num_adaptations` controls observation and replanning during that run. Without
-`--use_cache`, startup can collect calibration and a stroke library; without
-`--dont_retrain_stroke_model`, it can train the stroke model. Use those operations
-deliberately when preparing a new brush/setup.
-
-Use `--help` for the full option list. Relevant controls include `--num_strokes`,
-`--init_optim_iter`, `--optim_iter`, `--render_height`, and
-`--how_often_to_get_paint`. `--ink` supports a marker or brush pen without paint
-loading or washing.
-
-## Image objectives and palettes
-
-The retained objectives compare a rendered painting with a reference image:
-
-- `l2`: mean squared pixel error.
-- `clip_conv_loss`: similarity of intermediate CLIP visual features.
-- `clip_fc_loss`: similarity of CLIP image embeddings.
-
-Local planning can combine objectives. Supply one image and weight per objective:
-
-```sh
-python src/paint.py --simulate --use_cache --dont_retrain_stroke_model \
-  --materials_json my_materials.json --cache_dir src/caches/so101_mvp \
-  --objective clip_conv_loss l2 \
-  --objective_data targets/black_bear.png targets/black_bear.png \
-  --objective_weight 0.2 1.0
-```
-
-Use `--use_colors_from` with a palette image and `--n_colors` to constrain paint
-colors. `--foreground_mode` plans a black silhouette on white, treating
-`--num_strokes` as a maximum budget. It requires one image objective and a fixed
-black palette, such as `--use_colors_from targets/palettes/black.png --n_colors 1`.
-
-## Runpod
-
-Use the separate Python 3.12 Runpod client environment:
-
-```sh
-.venv-runpod/bin/python scripts/runpod_workflow.py --help
-```
-
-The workflow's default action provisions a paid job. See [Runpod setup and
-workflows](docs/runpod.md) for training, planning, downloading model bundles, and
-building the worker image. Rebuild and publish the worker image after changes
-to its bundled source or dependencies, and update `src/remote/runpod.json` with
-the returned tag.
-
-## Camera, recording, and diagnostics
-
-The physical camera uses the Innomaker through OpenCV's `cv2.VideoCapture(0)`.
-Connect it and allow camera access for the Python process.
-`scripts/innomaker_test.py` checks capture and the calibrated canvas view.
-Physical painting records overhead video and events by default; use
-`--no_recording` to disable this. Simulation never records video.
-
-Examples of offline previews and checks:
-
-```sh
-python scripts/paint_repeatability.py
-python scripts/preview_so101_offsets.py --help
-python -m pytest -q
-```
-
-The first command previews the repeatability experiment; physical execution
-requires its explicit execution option. See the SO101 instructions for motion
-diagnostics and paint loading, washing, and repeatability experiments.
-
-View optimization logs with TensorBoard, if installed:
-
-```sh
-tensorboard --logdir outputs/painting_log
+  camera/        Capture, calibration, simulation, and recording
+  SO101/         Robot models, meshes, offsets, and calibration guide
+  caches/        Calibration data, stroke libraries, and trained models
+  remote/        Runpod client, worker, and Docker build
+scripts/         Calibration, diagnostics, and physical experiments
+tests/           Regression tests
+targets/         Reference images and palettes
+outputs/         Local captures, recordings, and experiment results
+docs/            Operating guides, validation history, and demo media
 ```
 
 ## Attribution
